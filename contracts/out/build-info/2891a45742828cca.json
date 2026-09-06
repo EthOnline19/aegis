@@ -1,0 +1,1 @@
+{"id":"2891a45742828cca","source_id_to_path":{"0":"src/BulwarkTypes.sol","1":"src/VerdictContract.sol","2":"src/interfaces/IBlocklist.sol","3":"src/interfaces/IGuardAccount.sol","4":"src/interfaces/IMutualPool.sol","5":"src/interfaces/IPolicyRegistry.sol"},"language":"Solidity"}

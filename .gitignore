@@ -1,0 +1,27 @@
+# deps
+/lib
+/node_modules
+
+# build
+/out
+/cache
+/dist
+/build
+/coverage
+/coverage.json
+/forge-cache
+/typechain-types
+
+# env
+.env
+.env.*
+!.env.example
+
+# misc
+.DS_Store
+*.log
+.idea
+.vscode
+
+# subgraph generated
+/subgraph/generated
