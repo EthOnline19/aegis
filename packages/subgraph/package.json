@@ -1,0 +1,14 @@
+{
+  "name": "@bulwark/subgraph",
+  "version": "0.1.0",
+  "description": "BULWARK Risk Subgraph — every policy-second, tier decision, verdict, claim, and blocklist entry. A public good.",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy": "graph deploy"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.71.0",
+    "@graphprotocol/graph-ts": "^0.35.1"
+  }
+}

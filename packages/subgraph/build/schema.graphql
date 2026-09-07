@@ -1,0 +1,122 @@
+# BULWARK Risk Subgraph — schema
+
+type Policy @entity {
+  id: ID!
+  agent: Bytes!
+  owner: Bytes!
+  version: BigInt!
+  policyHash: Bytes!
+  coverageCap: BigInt!
+  deductibleBps: BigInt!
+  perTxLimit: BigInt!
+  dailyLimit: BigInt!
+  velocityLimit: BigInt!
+  allowlist: [RecipientCap!]!
+  holdWindowSec: BigInt!
+  sdkInstalled: Boolean!
+  createdAt: BigInt!
+  updatedAt: BigInt!
+  revoked: Boolean!
+  classifications: [Classification!]! @derivedFrom(field: "policy")
+  verdicts: [Verdict!]! @derivedFrom(field: "policy")
+}
+
+type RecipientCap @entity {
+  id: ID!
+  policy: Policy!
+  recipient: Bytes!
+  cap: BigInt!
+}
+
+type Classification @entity {
+  id: ID!
+  policy: Policy!
+  agent: Bytes!
+  tier: Int!
+  tag: Bytes!
+  to: Bytes!
+  amount: BigInt!
+  blockTimestamp: BigInt!
+  hold: Hold @derivedFrom(field: "classification")
+}
+
+type Hold @entity {
+  id: ID!
+  classification: Classification!
+  agent: Bytes!
+  to: Bytes!
+  amount: BigInt!
+  releaseAt: BigInt!
+  createdAt: BigInt!
+  extendedTo: BigInt!
+  status: Int!
+  resolvedAt: BigInt
+  resolvedBy: Bytes
+}
+
+type Verdict @entity {
+  id: ID!
+  policy: Policy!
+  agent: Bytes!
+  claimant: Bytes!
+  txHash: Bytes!
+  destination: Bytes
+  outcome: Int!
+  alibi: Int!
+  lossAmount: BigInt!
+  payoutAmount: BigInt!
+  acceptedAt: BigInt!
+  reasons: [Reason!]! @derivedFrom(field: "verdict")
+}
+
+type Reason @entity {
+  id: ID!
+  verdict: Verdict!
+  tag: String!
+  provenance: Int!
+  detail: String!
+}
+
+type BlocklistEntry @entity {
+  id: ID!
+  destination: Bytes!
+  strikes: Int!
+  flagged: Boolean!
+  reports: [Report!]! @derivedFrom(field: "entry")
+}
+
+type Report @entity {
+  id: ID!
+  entry: BlocklistEntry!
+  evidence: Bytes!
+  reporter: Bytes!
+  blockTimestamp: BigInt!
+}
+
+type PoolState @entity {
+  id: ID!
+  juniorCapital: BigInt!
+  seniorCapital: BigInt!
+  premiumPool: BigInt!
+  totalPayouts: BigInt!
+  claimCount: Int!
+}
+
+type Payout @entity {
+  id: ID!
+  claimant: Bytes!
+  amount: BigInt!
+  juniorLoss: BigInt!
+  seniorLoss: BigInt!
+  verdict: Verdict!
+  blockTimestamp: BigInt!
+}
+
+type TrancheDeposit @entity {
+  id: ID!
+  depositor: Bytes!
+  tranche: Int!
+  assets: BigInt!
+  shares: BigInt!
+  blockTimestamp: BigInt!
+}

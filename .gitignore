@@ -25,3 +25,5 @@
 
 # subgraph generated
 /subgraph/generated
+subgraph/build/
+subgraph/generated/
