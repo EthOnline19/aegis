@@ -1,16 +1,22 @@
 # deps
+node_modules/
 /lib
-/node_modules
 
-# build
-/out
-/cache
-/dist
-/build
-/coverage
-/coverage.json
-/forge-cache
-/typechain-types
+# foundry build outputs
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# graph build outputs
+packages/subgraph/build/
+packages/subgraph/generated/
+
+# js build
+dist/
+build/
+coverage/
+coverage.json
+*.tsbuildinfo
 
 # env
 .env
@@ -22,8 +28,3 @@
 *.log
 .idea
 .vscode
-
-# subgraph generated
-/subgraph/generated
-subgraph/build/
-subgraph/generated/

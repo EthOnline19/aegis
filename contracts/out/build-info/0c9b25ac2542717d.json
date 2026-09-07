@@ -1,1 +1,0 @@
-{"id":"0c9b25ac2542717d","source_id_to_path":{"0":"src/Blocklist.sol","1":"src/BulwarkTypes.sol","2":"src/GuardAccount.sol","3":"src/PolicyRegistry.sol","4":"src/interfaces/IBlocklist.sol","5":"src/interfaces/IERC20.sol","6":"src/interfaces/IPolicyRegistry.sol","7":"src/interfaces/IVerdictContract.sol"},"language":"Solidity"}

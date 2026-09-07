@@ -1,1 +1,0 @@
-{"version":1,"failures":[{"contract":"test/invariants/Properties.t.sol:Properties","test":"testFuzz_PayoutsSolvent"}]}

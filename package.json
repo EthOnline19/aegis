@@ -2,14 +2,19 @@
   "name": "aegis",
   "private": true,
   "version": "0.1.0",
-  "description": "BULWARK — deposit insurance for AI agents. The seatbelt, the airbag, the black box, and the fleet contract.",
-  "workspaces": ["packages/*"],
+  "description": "BULWARK \u2014 deposit insurance for AI agents. The seatbelt, the airbag, the black box, and the fleet contract.",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "test": "bun run test:contracts && bun run test:js",
-    "test:contracts": "cd contracts && forge test -vvv",
+    "test:contracts": "cd contracts && forge test",
     "test:js": "bun workspaces foreach --all run test",
-    "build:js": "bun build packages/dashboard/index.html",
-    "lint": "bun workspaces foreach --all run lint"
+    "lint": "bun workspaces foreach --all run lint",
+    "demo": "cd packages/demo && bun run src/demo.ts",
+    "api": "cd packages/api && bun run start",
+    "dashboard": "cd packages/dashboard && bun run start",
+    "subgraph:build": "cd packages/subgraph && bunx graph codegen && bunx graph build"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
