@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  # Prevents tsconfig discovery from walking up out of the repo.
+  NODE_PATH: ""
+
+jobs:
+  contracts:
+    name: Contracts (forge build + test + slither)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.1
+
+      - name: Forge build
+        working-directory: contracts
+        run: forge build
+
+      - name: Forge test
+        working-directory: contracts
+        run: forge test -vvv
+
+      - name: Install Slither
+        run: pipx install slither-analyzer
+
+      - name: Slither
+        working-directory: contracts
+        # Phase-0 triage: findings are informational and listed, not yet
+        # gate-failing. Will tighten to --fail-* once the baseline is clean.
+        run: slither . --no-fail-pedantic --json slither-report.json || true
+
+      - name: Upload Slither report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slither-report
+          path: contracts/slither-report.json
+          if-no-files-found: ignore
+
+  typescript:
+    name: TypeScript (tsc + vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type-check every package
+        run: |
+          cd packages/engine && bunx tsc --noEmit
+          cd ../sdk     && bunx tsc --noEmit
+          cd ../api     && bunx tsc --noEmit
+
+      - name: Test engine
+        run: cd packages/engine && bunx vitest run
+
+      - name: Test SDK
+        run: cd packages/sdk && bunx vitest run
+
+      - name: Test API
+        run: cd packages/api && bunx vitest run
