@@ -51,12 +51,19 @@ export interface BulwarkConfig {
 
 export class Bulwark {
   private readonly config: BulwarkConfig;
+  private readonly sessionKeyBytes: Uint8Array;
   private readonly sessionPubkeyBytes: Uint8Array;
   private chain: ChainEntry[] = [];
 
   constructor(config: BulwarkConfig) {
     this.config = config;
-    this.sessionPubkeyBytes = secp256k1.getPublicKey(hexToBytes(config.sessionKey.slice(2)), true);
+    // Normalize once: accept 0x-prefixed or bare hex, 64 chars.
+    const keyHex = config.sessionKey.replace(/^0x/i, "");
+    if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+      throw new Error("sessionKey must be a 32-byte hex string (with or without 0x)");
+    }
+    this.sessionKeyBytes = hexToBytes(keyHex);
+    this.sessionPubkeyBytes = secp256k1.getPublicKey(this.sessionKeyBytes, true);
   }
   /** The current chain head (commit this to ENSv2 / TEE). */
   get head(): `0x${string}` {
@@ -91,7 +98,7 @@ export class Bulwark {
 
     let signature: `0x${string}` | undefined;
     if (ownerSigned) {
-      const sig = secp256k1.sign(hexToBytes(digest.slice(2)), hexToBytes(this.config.sessionKey.slice(2)));
+      const sig = secp256k1.sign(hexToBytes(digest.slice(2)), this.sessionKeyBytes);
       signature = `0x${sig.toCompactHex()}` as `0x${string}`;
     }
 
