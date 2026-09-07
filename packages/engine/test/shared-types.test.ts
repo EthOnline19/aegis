@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(TEST_DIR, "..", "..", "..");
 import {
   toOnChainPolicy,
   type Policy,
@@ -24,16 +26,15 @@ function solidifyPolicyFields(): Array<{ name: string; type: string; internalTyp
   // BulwarkTypes is a library — forge emits the Policy struct's field list
   // in getPolicy's output components (PolicyRegistry artifact), not in the
   // library's own abi. That component list is the canonical field source.
-  const registryPath = join(
-    TEST_DIR,
-    "..",
-    "..",
-    "..",
-    "contracts",
-    "out",
-    "PolicyRegistry.sol",
-    "PolicyRegistry.json",
-  );
+  const registryPath = join(REPO_ROOT, "contracts", "out", "PolicyRegistry.sol", "PolicyRegistry.json");
+
+  // contracts/out is a build artifact (gitignored). If it's missing — fresh
+  // clone, CI runner without a prior forge step — build it so this lockstep
+  // test always runs against the real ABI, never silently skips.
+  if (!existsSync(registryPath)) {
+    execSync("forge build", { cwd: join(REPO_ROOT, "contracts"), stdio: "pipe" });
+  }
+
   const registry = JSON.parse(readFileSync(registryPath, "utf8")) as {
     abi: Array<{
       type: string;

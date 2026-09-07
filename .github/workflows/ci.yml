@@ -4,10 +4,6 @@ on:
   push:
   pull_request:
 
-env:
-  # Prevents tsconfig discovery from walking up out of the repo.
-  NODE_PATH: ""
-
 jobs:
   contracts:
     name: Contracts (forge build + test + slither)
@@ -52,6 +48,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.1
+
+      - name: Forge build (generates contracts/out artifacts for the TS tests)
+        working-directory: contracts
+        run: forge build
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
