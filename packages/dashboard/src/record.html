@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BULWARK — Public Record</title>
+<style>
+  :root { --bg:#0b0e14; --panel:#12161f; --line:#1f2633; --ink:#e8edf5; --dim:#8b95a7; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --brand:#5b8cff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,monospace; padding:24px; }
+  header { display:flex; align-items:baseline; gap:12px; margin-bottom:20px; }
+  h1 { font-size:18px; letter-spacing:.5px; }
+  h1 b { color:var(--brand); }
+  nav a { color:var(--dim); text-decoration:none; margin-right:14px; }
+  nav a.on { color:var(--ink); border-bottom:1px solid var(--brand); }
+  .lookup { display:flex; gap:8px; margin-bottom:18px; }
+  .lookup input { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:10px 14px; font:inherit; }
+  .lookup button { background:var(--brand); border:0; color:#fff; border-radius:8px; padding:10px 20px; font:inherit; cursor:pointer; }
+  .record { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; font-size:13.5px; }
+  .record .line { display:flex; gap:12px; padding:3px 0; }
+  .record .line b { width:110px; color:var(--dim); font-weight:400; flex-shrink:0; }
+  .claims .c { padding:3px 0 3px 122px; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:10.5px; margin-right:6px; }
+  .pill.ok { background:rgba(52,211,153,.12); color:var(--ok); }
+  .pill.bad { background:rgba(248,113,113,.12); color:var(--bad); }
+  .pill.warn { background:rgba(251,191,36,.12); color:var(--warn); }
+  .note { color:var(--dim); font-size:11.5px; margin-top:14px; }
+  footer { margin-top:18px; color:var(--dim); font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><b>BULWARK</b> · Public Record</h1>
+  <nav>
+    <a href="/">Owner</a>
+    <a href="/capital">Capital</a>
+    <a class="on" href="/record">Record</a>
+  </nav>
+</header>
+
+<div class="lookup">
+  <input id="name" value="atlas.bulwark.eth" spellcheck="false" />
+  <button onclick="resolve()">resolve</button>
+</div>
+
+<div class="record" id="record"></div>
+
+<p class="note">Any marketplace, hiring protocol, or other agent can price trust in this machine with one lookup.
+The record resolves from EN Sv2: policy hash, instruction hash-chain head, claim history.</p>
+
+<footer>BULWARK — the actuarial layer of the machine economy · this surface queries the Risk Subgraph</footer>
+
+<script>
+  const RECORDS = {
+    "atlas.bulwark.eth": {
+      INSURED: '<span class="pill ok">yes</span> policy v1 · cap $2,500 · pool healthy',
+      DRIVING: '<span class="pill ok">94/100</span> 179-day clean streak · premium 0.72×',
+      CLAIMS: [
+        '<span class="pill warn">covered</span> $135.00 · external injection · look-alike address · recovered',
+        '<span class="pill warn">attempted</span> frozen in hold window · no loss',
+      ],
+      ALIBI_SDK: 'installed — instruction chain live',
+      BACKING: 'World-ID verified human',
+      POOL: 'junior $19,865 · senior $25,000 · solvent',
+      STATUS: 'ACTIVE since 2026-06',
+    },
+    "vex.bulwark.eth": {
+      INSURED: '<span class="pill bad">scarred</span> policy v1 · cap $2,500',
+      DRIVING: '<span class="pill bad">12/100</span> 2-day streak · premium 5.00×',
+      CLAIMS: [
+        '<span class="pill bad">denied</span> $0.00 · OWNER-ORIGIN — owner-signed instruction proved',
+      ],
+      ALIBI_SDK: 'installed — the chain convicted the owner',
+      BACKING: 'World-ID verified human · 1 denied claim bound to identity',
+      POOL: '—',
+      STATUS: 'DECLINED for renewal',
+    },
+    "trux.bulwark.eth": {
+      INSURED: '<span class="pill ok">yes</span> policy v1 · cap $1,200',
+      DRIVING: '<span class="pill ok">88/100</span> 41-day clean streak · premium 0.81×',
+      CLAIMS: [
+        '<span class="pill ok">dismissed</span> merchant address rotation — overturned by re-run, no fault, no scar',
+      ],
+      ALIBI_SDK: 'installed — instruction chain live',
+      BACKING: 'World-ID verified human',
+      POOL: '—',
+      STATUS: 'ACTIVE since 2026-08',
+    },
+  };
+
+  function render(name) {
+    const r = RECORDS[name];
+    const el = document.getElementById("record");
+    if (!r) {
+      el.innerHTML = `<div class="line"><b>resolve</b>${name} → not found (no BULWARK record)</div>`;
+      return;
+    }
+    let html = "";
+    for (const [k, v] of Object.entries(r)) {
+      if (k === "CLAIMS") {
+        html += `<div class="line"><b>${k}</b><div class="claims">${v.join("")}</div></div>`;
+      } else {
+        html += `<div class="line"><b>${k}</b><span>${v}</span></div>`;
+      }
+    }
+    el.innerHTML = html;
+  }
+
+  function resolve() {
+    render(document.getElementById("name").value.trim().toLowerCase());
+  }
+
+  render("atlas.bulwark.eth");
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BULWARK — Capital Dashboard</title>
+<style>
+  :root { --bg:#0b0e14; --panel:#12161f; --line:#1f2633; --ink:#e8edf5; --dim:#8b95a7; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --brand:#5b8cff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,monospace; padding:24px; }
+  header { display:flex; align-items:baseline; gap:12px; margin-bottom:20px; }
+  h1 { font-size:18px; letter-spacing:.5px; }
+  h1 b { color:var(--brand); }
+  nav a { color:var(--dim); text-decoration:none; margin-right:14px; }
+  nav a.on { color:var(--ink); border-bottom:1px solid var(--brand); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .card h2 { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; }
+  .row { display:flex; justify-content:space-between; padding:4px 0; }
+  .row .k { color:var(--dim); }
+  .stack { display:flex; gap:2px; height:26px; border-radius:6px; overflow:hidden; margin:10px 0; }
+  .stack .junior { background:linear-gradient(90deg,#f59e0b,#fbbf24); }
+  .stack .senior { background:linear-gradient(90deg,#2563eb,#5b8cff); }
+  .legend { display:flex; gap:16px; font-size:12px; color:var(--dim); }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .feed { display:flex; flex-direction:column; gap:8px; }
+  .evt { border-left:2px solid var(--line); padding:6px 10px; }
+  .evt time { color:var(--dim); font-size:11px; display:block; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { text-align:right; padding:6px 8px; border-bottom:1px solid var(--line); }
+  th { color:var(--dim); font-weight:400; text-transform:uppercase; font-size:10.5px; letter-spacing:.5px; }
+  td:first-child, th:first-child { text-align:left; }
+  .pos { color:var(--ok); }
+  .neg { color:var(--bad); }
+  footer { margin-top:18px; color:var(--dim); font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><b>BULWARK</b> · Capital</h1>
+  <nav>
+    <a href="/">Owner</a>
+    <a class="on" href="/capital">Capital</a>
+    <a href="/record">Record</a>
+  </nav>
+</header>
+
+<div class="grid">
+  <section class="card" style="grid-column:1/-1">
+    <h2>The Mutual Pool — live actuarial table</h2>
+    <div class="stack">
+      <div class="junior" id="juniorBar" style="flex:19865"></div>
+      <div class="senior" id="seniorBar" style="flex:25000"></div>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:#fbbf24"></span>junior (first loss · higher yield)</span>
+      <span><span class="dot" style="background:#5b8cff"></span>senior (protected · paid first)</span>
+    </div>
+    <div class="row"><span class="k">capital available</span><span id="total">$44,865.00</span></div>
+    <div class="row"><span class="k">premiums in (30d)</span><span class="pos">+$312.40</span></div>
+    <div class="row"><span class="k">claims out (30d)</span><span class="neg">−$135.00</span></div>
+    <div class="row"><span class="k">reinsurance layer</span><span>cat-bond hook · $100,000 attachment (v2 — NextBlock)</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Tranches</h2>
+    <table>
+      <tr><th>tranche</th><th>capital</th><th>30d yield</th><th>share</th></tr>
+      <tr><td>junior</td><td>$19,865</td><td class="pos">+1.52%</td><td>44.3%</td></tr>
+      <tr><td>senior</td><td>$25,000</td><td class="pos">+0.41%</td><td>55.7%</td></tr>
+    </table>
+    <div class="row" style="margin-top:8px"><span class="k">LPs</span><span>2 · deposits open</span></div>
+    <div class="row"><span class="k">risk class</span><span>machine telematics (uncorrelated)</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Coverage in force</h2>
+    <div class="row"><span class="k">agents</span><span>3 · Atlas, Vex, Trux</span></div>
+    <div class="row"><span class="k">aggregate cap</span><span>$6,200</span></div>
+    <div class="row"><span class="k">utilization</span><span>13.8% of junior</span></div>
+    <div class="row"><span class="k">watch-only agents</span><span>1 (×2 load)</span></div>
+    <div class="row"><span class="k">solvency</span><span class="pos">payouts ≤ capital invariant holds</span></div>
+  </section>
+
+  <section class="card" style="grid-column:1/-1">
+    <h2>Claims feed</h2>
+    <div class="feed">
+      <div class="evt"><time>block 262 · same block as verdict</time>COVERED · atlas.bulwark.eth · $135.00 · alibi EXTERNAL · junior absorbed</div>
+      <div class="evt"><time>block 259</time>DENIED_OWNER_ORIGIN · vex.bulwark.eth · $0.00 · owner-signed instruction — scar recorded</div>
+      <div class="evt"><time>block 256</time>ATTEMPTED_BREACH · atlas.bulwark.eth · $0.00 · frozen in hold window · pricing +0.15×/30d</div>
+    </div>
+  </section>
+</div>
+
+<footer>BULWARK capital — anyone with USDC earning yield on priced, capped, telematic machine risk · waterfall: junior → senior → reinsurance</footer>
+</body>
+</html>

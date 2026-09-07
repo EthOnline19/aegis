@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BULWARK — Owner Dashboard</title>
+<style>
+  :root { --bg:#0b0e14; --panel:#12161f; --line:#1f2633; --ink:#e8edf5; --dim:#8b95a7; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --brand:#5b8cff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,monospace; padding:24px; }
+  header { display:flex; align-items:baseline; gap:12px; margin-bottom:20px; }
+  h1 { font-size:18px; letter-spacing:.5px; }
+  h1 b { color:var(--brand); }
+  nav a { color:var(--dim); text-decoration:none; margin-right:14px; }
+  nav a.on { color:var(--ink); border-bottom:1px solid var(--brand); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .card h2 { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; }
+  .row { display:flex; justify-content:space-between; padding:4px 0; }
+  .row span:last-child { color:var(--ink); font-weight:600; }
+  .row .k { color:var(--dim); }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:11px; margin:2px 4px 2px 0; }
+  .pill.ok { background:rgba(52,211,153,.12); color:var(--ok); }
+  .pill.warn { background:rgba(251,191,36,.12); color:var(--warn); }
+  .pill.bad { background:rgba(248,113,113,.12); color:var(--bad); }
+  .feed { display:flex; flex-direction:column; gap:8px; }
+  .evt { border-left:2px solid var(--line); padding:6px 10px; }
+  .evt time { color:var(--dim); font-size:11px; display:block; }
+  .ticker { color:var(--ok); }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin:6px 0; }
+  .bar i { display:block; height:100%; background:var(--ok); }
+  footer { margin-top:18px; color:var(--dim); font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><b>BULWARK</b> · Owner</h1>
+  <nav>
+    <a class="on" href="/">Owner</a>
+    <a href="/capital">Capital</a>
+    <a href="/record">Record</a>
+  </nav>
+</header>
+
+<div class="grid">
+  <section class="card">
+    <h2>Policy — atlas.bulwark.eth</h2>
+    <div class="row"><span class="k">per-tx cap</span><span>$200 <span style="color:var(--dim)">(payroll $400)</span></span></div>
+    <div class="row"><span class="k">daily cap</span><span>$1,000</span></div>
+    <div class="row"><span class="k">velocity</span><span>5 txs/day</span></div>
+    <div class="row"><span class="k">coverage cap</span><span>$2,500</span></div>
+    <div class="row"><span class="k">deductible</span><span>10%</span></div>
+    <div class="row"><span class="k">hold window</span><span>2 minutes</span></div>
+    <div class="row"><span class="k">allowlist</span><span>2 recipients</span></div>
+    <div class="row"><span class="k">version</span><span>v1 · hash committed</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Driving record — telematics</h2>
+    <div class="row"><span class="k">clean streak</span><span class="ticker" id="streak">179 days</span></div>
+    <div class="bar"><i id="streakBar" style="width:99%"></i></div>
+    <div class="row"><span class="k">premium multiplier</span><span class="ticker">0.72×</span></div>
+    <div class="row"><span class="k">world ID (KYA)</span><span>verified ✓ −20%</span></div>
+    <div class="row"><span class="k">alibi SDK</span><span>installed ✓ −10%</span></div>
+    <div class="row"><span class="k">monthly equivalent</span><span>$36.00 on $2,500</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Today</h2>
+    <div class="row"><span class="k">wallet</span><span>$4,000.00</span></div>
+    <div class="row"><span class="k">routine today</span><span>$950 / $1,000</span></div>
+    <div class="bar"><i style="width:95%; background:var(--warn)"></i></div>
+    <div class="row"><span class="k">holds pending</span><span>0</span></div>
+    <div class="row"><span class="k">blocks active</span><span>1,431 · premium accrued $1.19</span></div>
+  </section>
+
+  <section class="card" style="grid-column:1/-1">
+    <h2>Event feed</h2>
+    <div class="feed" id="feed"></div>
+  </section>
+</div>
+
+<footer>BULWARK — deposit insurance for AI agents · non-custodial · parametric · this dashboard reads the Risk Subgraph</footer>
+
+<script>
+  const events = [
+    { t: "T+2:40", tier: "ok",   text: "COVERED BREACH · $150 look-alike transfer · alibi: EXTERNAL · payout $135.00 same block" },
+    { t: "T+2:40", tier: "warn", text: "Destination 0x…afdac1 blocklisted (1st strike) · attacker address hashed fleet-wide" },
+    { t: "T+1:12", tier: "bad",  text: "VIOLATION BLOCKED · $900 > $200 cap · admin-override attempt logged · pricing +0.15×/30d" },
+    { t: "T+0:45", tier: "warn", text: "HOLD FROZEN · $150 → 0x5540…de6501 · new recipient · wallet age 3 days · 4AM anomaly · owner froze" },
+    { t: "T+0:20", tier: "ok",   text: "Payroll complete · 5 routine txs · streak 178 → 179 · multiplier drifts down 0.001×" },
+    { t: "T+0:00", tier: "ok",   text: "Policy v1 attached · pool healthy ($45,000) · SDK instruction chain live" },
+  ];
+  const feed = document.getElementById("feed");
+  const tierClass = { ok: "ok", warn: "warn", bad: "bad" };
+  for (const e of events) {
+    const div = document.createElement("div");
+    div.className = "evt";
+    div.innerHTML = `<time>${e.t}</time><span class="pill ${tierClass[e.tier]}">${e.tier === "ok" ? "ROUTINE" : e.tier === "warn" ? "ELEVATED" : "VIOLATION"}</span> ${e.text}`;
+    feed.appendChild(div);
+  }
+  let streak = 179;
+  setInterval(() => {
+    const el = document.getElementById("streak");
+    el.textContent = streak + " days";
+    document.getElementById("streakBar").style.width = Math.min(100, streak / 1.8) + "%";
+  }, 5000);
+</script>
+</body>
+</html>

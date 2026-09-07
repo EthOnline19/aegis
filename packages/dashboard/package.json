@@ -1,0 +1,14 @@
+{
+  "name": "@bulwark/dashboard",
+  "version": "0.1.0",
+  "description": "BULWARK dashboards — Owner (policy, alerts, driving record), Capital (pool, tranches, claims feed), Public record lookup.",
+  "type": "module",
+  "scripts": {
+    "start": "bun run serve.ts",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
