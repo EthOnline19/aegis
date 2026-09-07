@@ -135,13 +135,13 @@ abstract contract BulwarkTest is Test {
         }
     }
 
-    /// @dev Build + sign a verdict with the watcher key (EIP-191 prefixed).
+    /// @dev Build + sign a verdict with the watcher key (EIP-712 typed
+    ///      digest over this deployment's domain — matches VerdictContract).
     function _signVerdict(BulwarkTypes.Verdict memory v) internal view returns (bytes memory) {
         v.policyHash = _policyHash();
         v.timestamp = uint64(block.timestamp);
-        bytes32 digest = BulwarkTypes.verdictDigest(v);
-        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest));
-        (uint8 sV, bytes32 r, bytes32 s) = vm.sign(watcherPk, prefixed);
+        bytes32 digest = verdicts.verdictDigest712(v);
+        (uint8 sV, bytes32 r, bytes32 s) = vm.sign(watcherPk, digest);
         return abi.encodePacked(r, s, sV);
     }
 
@@ -151,12 +151,12 @@ abstract contract BulwarkTest is Test {
         verdicts.submitVerdict(v, sig);
     }
 
-    /// @dev Submit a signed hold verdict as the watcher (clean=0 / suspicious=1).
+    /// @dev Submit a signed hold verdict as the watcher (clean=0 / suspicious=1),
+    ///      EIP-712 over this deployment's domain.
     function _submitHoldVerdict(uint256 holdId, uint8 tier) internal {
         bytes32 policyHash = _policyHash();
-        bytes32 raw = keccak256(abi.encode(holdId, address(guard), policyHash, tier));
-        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", raw));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(watcherPk, prefixed);
+        bytes32 digest = verdicts.holdVerdictDigest712(holdId, address(guard), policyHash, tier);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(watcherPk, digest);
         bytes memory sig = abi.encodePacked(r, s, v);
         vm.prank(vm.addr(watcherPk));
         verdicts.submitHoldVerdict(holdId, address(guard), policyHash, tier, sig);

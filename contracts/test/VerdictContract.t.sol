@@ -27,31 +27,32 @@ contract VerdictContractTest is BulwarkTest {
         BulwarkTypes.Verdict memory v = _coveredVerdict(bytes32(uint256(0xA11CE)), attacker, 150e6, 135e6);
         _submitVerdict(v);
 
-        // Same txHash again → rejected (nullifier consumed).
+        // Same txHash again → rejected (nullifier consumed). Sign BEFORE the
+        // prank: _sigFor's digest staticcall would consume it.
+        bytes memory sig = _sigFor(v);
         vm.prank(vm.addr(watcherPk));
         vm.expectRevert(VerdictContract.DuplicateClaim.selector);
-        verdicts.submitVerdict(v, _sigFor(v));
+        verdicts.submitVerdict(v, sig);
     }
 
     function test_PayoutCannotExceedCap() public {
         BulwarkTypes.Verdict memory v =
             _coveredVerdict(bytes32(uint256(0xBEEF)), attacker, 2500e6, 2501e6);
+        bytes memory sig = _sigFor(v);
         vm.prank(vm.addr(watcherPk));
         vm.expectRevert(VerdictContract.PayoutExceedsCap.selector);
-        verdicts.submitVerdict(v, _sigFor(v));
+        verdicts.submitVerdict(v, sig);
     }
 
     function test_DeductibleMathEnforced() public {
-        // $150 loss, 10% deductible → payout must be ≤ $135. $136 is invalid:
-        // 136 + 13.6 = 149.6 ≤ 150 loss — hmm, the rule is payout + deductible
-        // portion ≤ loss, so $136 + $13.60 = $149.60 ≤ $150 passes. The plan's
-        // exact math: payout = loss × (1 − 10%) = $135. A greedy payout of $149
-        // fails: 149 + 14.9 = 163.9 > 150.
+        // $150 loss, 10% deductible → payout must be ≤ $135. A greedy payout
+        // of $149 fails: 149 + 14.9 = 163.9 > 150.
         BulwarkTypes.Verdict memory v =
             _coveredVerdict(bytes32(uint256(0xCAFE)), attacker, 150e6, 149e6);
+        bytes memory sig = _sigFor(v);
         vm.prank(vm.addr(watcherPk));
         vm.expectRevert(VerdictContract.PayoutExceedsLoss.selector);
-        verdicts.submitVerdict(v, _sigFor(v));
+        verdicts.submitVerdict(v, sig);
     }
 
     function test_FraudulentOwnerDenied() public {
@@ -71,26 +72,27 @@ contract VerdictContractTest is BulwarkTest {
         // COVERED outcome with owner-signed alibi → contradictory → reject.
         BulwarkTypes.Verdict memory v = _coveredVerdict(bytes32(uint256(0xBAD1)), attacker, 100e6, 90e6);
         v.alibi = uint8(BulwarkTypes.Alibi.OWNER_SIGNED);
+        bytes memory sig = _sigFor(v);
         vm.prank(vm.addr(watcherPk));
         vm.expectRevert(VerdictContract.OutcomeMismatch.selector);
-        verdicts.submitVerdict(v, _sigFor(v));
+        verdicts.submitVerdict(v, sig);
     }
 
     function test_StaleVerdictRejected() public {
         BulwarkTypes.Verdict memory v = _coveredVerdict(bytes32(uint256(0x01D)), attacker, 100e6, 90e6);
+        bytes memory sig = _sigFor(v);
         vm.warp(block.timestamp + 601); // beyond 600s freshness
         vm.prank(vm.addr(watcherPk));
         vm.expectRevert(VerdictContract.StaleVerdict.selector);
-        verdicts.submitVerdict(v, _sigFor(v));
+        verdicts.submitVerdict(v, sig);
     }
 
     function test_ForgedSignatureRejected() public {
         BulwarkTypes.Verdict memory v = _coveredVerdict(bytes32(uint256(0xFA7E)), attacker, 100e6, 90e6);
-        // Sign with a different key.
+        // Sign with a different key over the SAME EIP-712 digest.
         uint256 forgerPk = 0xBAD;
-        bytes32 digest = BulwarkTypes.verdictDigest(v);
-        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest));
-        (uint8 sv, bytes32 r, bytes32 s) = vm.sign(forgerPk, prefixed);
+        bytes32 digest = verdicts.verdictDigest712(v);
+        (uint8 sv, bytes32 r, bytes32 s) = vm.sign(forgerPk, digest);
         bytes memory sig = abi.encodePacked(r, s, sv);
 
         vm.prank(vm.addr(watcherPk));
@@ -109,9 +111,10 @@ contract VerdictContractTest is BulwarkTest {
     function test_ClaimantMustBePolicyOwner() public {
         BulwarkTypes.Verdict memory v = _coveredVerdict(bytes32(uint256(0x741EF)), attacker, 100e6, 90e6);
         v.claimant = attacker; // not the owner
+        bytes memory sig = _sigFor(v);
         vm.prank(vm.addr(watcherPk));
         vm.expectRevert(VerdictContract.AgentMismatch.selector);
-        verdicts.submitVerdict(v, _sigFor(v));
+        verdicts.submitVerdict(v, sig);
     }
 
     function test_AttemptedBreachSignalsPricing() public {
@@ -137,7 +140,7 @@ contract VerdictContractTest is BulwarkTest {
         BulwarkTypes.Verdict memory v = _coveredVerdict(bytes32(uint256(0x2A046)), carol, 120e6, 108e6);
         _submitVerdict(v);
 
-        bytes32 digest = BulwarkTypes.verdictDigest(v);
+        bytes32 digest = verdicts.verdictDigest712(v);
         verdicts.dispute(digest);
 
         (, address opener,,) = _disputeOf(digest);
@@ -156,19 +159,18 @@ contract VerdictContractTest is BulwarkTest {
         assertEq(address(this).balance, balBefore + 1 ether, "stake refunded on overturn");
     }
 
+    function _sigFor(BulwarkTypes.Verdict memory v) internal view returns (bytes memory) {
+        bytes32 digest = verdicts.verdictDigest712(v);
+        (uint8 sv, bytes32 r, bytes32 s) = vm.sign(watcherPk, digest);
+        return abi.encodePacked(r, s, sv);
+    }
+
     function _disputeOf(bytes32 digest)
         internal
         view
         returns (VerdictContract.DisputeState state, address opener, uint256 stake, uint256 openedAt)
     {
         (state, opener, stake, openedAt) = verdicts.disputes(digest);
-    }
-
-    function _sigFor(BulwarkTypes.Verdict memory v) internal view returns (bytes memory) {
-        bytes32 digest = BulwarkTypes.verdictDigest(v);
-        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest));
-        (uint8 sv, bytes32 r, bytes32 s) = vm.sign(watcherPk, prefixed);
-        return abi.encodePacked(r, s, sv);
     }
     receive() external payable {}
 }

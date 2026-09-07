@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "aegis",
@@ -34,6 +35,7 @@
       "dependencies": {
         "@bulwark/agent-sdk": "workspace:*",
         "@bulwark/engine": "workspace:*",
+        "@noble/curves": "^1.6.0",
         "viem": "^2.21.0",
       },
       "devDependencies": {

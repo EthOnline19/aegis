@@ -13,6 +13,7 @@ import {
   getContract,
   encodeAbiParameters,
   keccak256,
+  toBytes,
   type PublicClient,
   type WalletClient,
   type Address,
@@ -21,7 +22,7 @@ import {
 } from "viem";
 import { anvil } from "viem/chains";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-
+import { secp256k1 } from "@noble/curves/secp256k1";
 import POLICY_REGISTRY from "../../../contracts/out/PolicyRegistry.sol/PolicyRegistry.json";
 import GUARD_ACCOUNT from "../../../contracts/out/GuardAccount.sol/GuardAccount.json";
 import VERDICT_CONTRACT from "../../../contracts/out/VerdictContract.sol/VerdictContract.json";
@@ -188,11 +189,13 @@ export async function submitCoveredVerdict(
   c: ReturnType<typeof clients>,
   claim: { txHash: string; destination: string; loss: bigint; payout: bigint },
 ): Promise<void> {
-  // Digest must match on-chain verdictDigest: keccak(abi.encode(fields...)).
-  // We compute it exactly as BulwarkTypes.verdictDigest does.
+  // EIP-712 domain-bound digest: the watcher signs the typed digest for THIS
+  // VerdictContract deployment (chainid + address). Mirrors
+  // VerdictContract.verdictDigest712 exactly.
   const policyHash = await p.registry.read.policyHashAt([p.policy.agent, 1]);
   const timestamp = (await c.public.getBlock()).timestamp; // chain clock: freshness window is chain-relative
-  const digest = verdictDigest({
+  const reasons: Array<{ tag: `0x${string}`; provenance: number; detail: string }> = [];
+  const digest = verdictDigest712(p.verdicts.address, {
     policyHash,
     agent: p.policy.agent,
     claimant: p.policy.owner,
@@ -202,9 +205,12 @@ export async function submitCoveredVerdict(
     payoutAmount: claim.payout,
     alibi: 1, // EXTERNAL
     outcome: 1, // COVERED
+    reasons,
     timestamp,
   });
-  const signature = await c.watcher.signMessage({ message: { raw: digest } });
+  // Raw ECDSA over the typed digest (no EIP-191 wrapper — matches the
+  // contract's ecrecover(digest, v, r, s)).
+  const signature = signRawDigest(digest, WATCHER_PK);
 
   const hash = await c.watcher.writeContract({
     address: p.verdicts.address,
@@ -221,7 +227,7 @@ export async function submitCoveredVerdict(
         payoutAmount: claim.payout,
         alibi: 1,
         outcome: 1,
-        reasons: [],
+        reasons,
         timestamp,
       },
       signature,
@@ -241,18 +247,10 @@ export async function submitHoldVerdict(
   tier: 0 | 1,
 ): Promise<void> {
   const policyHash = await p.registry.read.policyHashAt([p.policy.agent, 1]);
-  const raw = keccak256(
-    encodeAbiParameters(
-      [
-        { name: "holdId", type: "uint256" },
-        { name: "agent", type: "address" },
-        { name: "policyHash", type: "bytes32" },
-        { name: "tier", type: "uint8" },
-      ],
-      [holdId, p.policy.agent, policyHash, BigInt(tier)],
-    ),
-  );
-  const signature = await c.watcher.signMessage({ message: { raw } });
+  // EIP-712 over this deployment's domain (mirrors holdVerdictDigest712).
+  const digest = holdVerdictDigest712(p.verdicts.address, holdId, p.policy.agent, policyHash, tier);
+  // Raw ECDSA over the typed digest (matches ecrecover on-chain).
+  const signature = signRawDigest(digest, WATCHER_PK);
   await c.watcher.writeContract({
     address: p.verdicts.address,
     abi: VERDICT_CONTRACT.abi,
@@ -267,59 +265,149 @@ export async function submitHoldVerdict(
 //                        Internals                                   //
 // ------------------------------------------------------------------ //
 
-/**
- * Mirrors BulwarkTypes.verdictDigest exactly: keccak256(abi.encode(...))
- * of every verdict field except `reasons` (on-chain digest excludes it —
- * see contracts/src/BulwarkTypes.sol).
- */
-function verdictDigest(v: {
-  policyHash: `0x${string}`;
-  agent: `0x${string}`;
-  claimant: `0x${string}`;
-  txHash: `0x${string}`;
-  destination: `0x${string}`;
-  lossAmount: bigint;
-  payoutAmount: bigint;
-  alibi: number;
-  outcome: number;
-  timestamp: bigint;
-}): `0x${string}` {
-  // Exactly BulwarkTypes.verdictDigest: abi.encode of the 11 fields —
-  // INCLUDING the (empty) reasons array, encoded as its tuple type.
-  const reasonType = { components: [
-    { name: "tag", type: "bytes4" },
-    { name: "provenance", type: "uint8" },
-    { name: "detail", type: "string" },
-  ], name: "reasons", type: "tuple[]" } as const;
-  const encoded = encodeAbiParameters(
-    [
-      { name: "policyHash", type: "bytes32" },
-      { name: "agent", type: "address" },
-      { name: "claimant", type: "address" },
-      { name: "txHash", type: "bytes32" },
-      { name: "destination", type: "address" },
-      { name: "lossAmount", type: "uint96" },
-      { name: "payoutAmount", type: "uint96" },
-      { name: "alibi", type: "uint8" },
-      { name: "outcome", type: "uint8" },
-      reasonType,
-      { name: "timestamp", type: "uint64" },
-    ],
-    [
-      v.policyHash,
-      v.agent,
-      v.claimant,
-      v.txHash,
-      v.destination,
-      v.lossAmount,
-      v.payoutAmount,
-      BigInt(v.alibi),
-      BigInt(v.outcome),
-      [], // reasons: empty in the demo verdict
-      v.timestamp,
-    ],
+// ------------------------------------------------------------------ //
+//                     EIP-712 digest mirroring                       //
+// ------------------------------------------------------------------ //
+
+/** Keccak of the EIP-712 domain, mirroring VerdictContract's constants. */
+export function domainSeparator(verifyingContract: `0x${string}`): `0x${string}` {
+  return keccak256(
+    encodeAbiParameters(
+      [
+        { name: "typeHash", type: "bytes32" },
+        { name: "nameHash", type: "bytes32" },
+        { name: "versionHash", type: "bytes32" },
+        { name: "chainId", type: "uint256" },
+        { name: "verifyingContract", type: "address" },
+        { name: "salt", type: "bytes32" },
+      ],
+      [
+        // Every slot is keccak(string) — toHexBytes IS that keccak. The old
+        // code wrapped slots in another keccak256 (double-hash), silently
+        // breaking every demo signature against the contract.
+        toHexBytes(
+          "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)",
+        ),
+        toHexBytes("BULWARK VerdictContract"),
+        toHexBytes("1"),
+        BigInt(anvil.id),
+        verifyingContract,
+        toHexBytes("BULWARK.verdict-domain.v1"),
+      ],
+    ),
   );
-  return keccak256(encoded);
+}
+
+function toHexBytes(text: string): `0x${string}` {
+  // keccak256 of UTF-8 text — viem's keccak256 accepts a string and encodes
+  // it as UTF-8 bytes (toBytes semantics).
+  return keccak256(toBytes(text));
+}
+
+/** Mirrors VerdictContract.verdictDigest712 (reasons hashed struct-wise). */
+export function verdictDigest712(
+  verifyingContract: `0x${string}`,
+  v: {
+    policyHash: `0x${string}`;
+    agent: `0x${string}`;
+    claimant: `0x${string}`;
+    txHash: `0x${string}`;
+    destination: `0x${string}`;
+    lossAmount: bigint;
+    payoutAmount: bigint;
+    alibi: number;
+    outcome: number;
+    reasons: ReadonlyArray<{ tag: `0x${string}`; provenance: number; detail: string }>;
+    timestamp: bigint;
+  },
+): `0x${string}` {
+  const reasonTypeHash = keccak256(toBytes("Reason(bytes4 tag,uint8 provenance,string detail)"));
+  const verdictTypeHash = keccak256(
+    toBytes(
+      "Verdict(bytes32 policyHash,address agent,address claimant,bytes32 txHash,address destination,uint96 lossAmount,uint96 payoutAmount,uint8 alibi,uint8 outcome,Reason[] reasons,uint64 timestamp)Reason(bytes4 tag,uint8 provenance,string detail)",
+    ),
+  );
+  const reasonHashes = v.reasons.map((r) =>
+    keccak256(
+      encodeAbiParameters(
+        [
+          { name: "tag", type: "bytes4" },
+          { name: "provenance", type: "uint8" },
+          { name: "detail", type: "string" },
+        ],
+        [r.tag, BigInt(r.provenance), r.detail],
+      ),
+    ),
+  );
+  const structHash = keccak256(
+    encodeAbiParameters(
+      [
+        { name: "typeHash", type: "bytes32" },
+        { name: "policyHash", type: "bytes32" },
+        { name: "agent", type: "address" },
+        { name: "claimant", type: "address" },
+        { name: "txHash", type: "bytes32" },
+        { name: "destination", type: "address" },
+        { name: "lossAmount", type: "uint96" },
+        { name: "payoutAmount", type: "uint96" },
+        { name: "alibi", type: "uint8" },
+        { name: "outcome", type: "uint8" },
+        { name: "reasonsHash", type: "bytes32" },
+        { name: "timestamp", type: "uint64" },
+      ],
+      [
+        verdictTypeHash,
+        v.policyHash,
+        v.agent,
+        v.claimant,
+        v.txHash,
+        v.destination,
+        v.lossAmount,
+        v.payoutAmount,
+        BigInt(v.alibi),
+        BigInt(v.outcome),
+        keccak256(concatHexBytes(reasonHashes)),
+        v.timestamp,
+      ],
+    ),
+  );
+  return keccak256(
+    concatHexBytes([
+      "0x1901",
+      domainSeparator(verifyingContract),
+      structHash,
+    ]),
+  );
+}
+
+/** Mirrors VerdictContract.holdVerdictDigest712. */
+function holdVerdictDigest712(
+  verifyingContract: `0x${string}`,
+  holdId: bigint,
+  agent: `0x${string}`,
+  policyHash: `0x${string}`,
+  tier: number,
+): `0x${string}` {
+  const typeHash = keccak256(toBytes("HoldVerdict(uint256 holdId,address agent,bytes32 policyHash,uint8 tier)"));
+  const structHash = keccak256(
+    encodeAbiParameters(
+      [
+        { name: "typeHash", type: "bytes32" },
+        { name: "holdId", type: "uint256" },
+        { name: "agent", type: "address" },
+        { name: "policyHash", type: "bytes32" },
+        { name: "tier", type: "uint8" },
+      ],
+      [typeHash, holdId, agent, policyHash, BigInt(tier)],
+    ),
+  );
+  return keccak256(
+    concatHexBytes(["0x1901", domainSeparator(verifyingContract), structHash]),
+  );
+}
+
+function concatHexBytes(parts: ReadonlyArray<`0x${string}`>): `0x${string}` {
+  return ("0x" + parts.map((p) => p.slice(2)).join("")) as `0x${string}`;
 }
 
 function asRw(account: PrivateKeyAccount): ReadWriteClient {
@@ -360,4 +448,15 @@ async function tx(
     chain: anvil,
   });
   await client.waitForTransactionReceipt({ hash });
+}
+
+/**
+ * Raw ECDSA (secp256k1) over a 32-byte digest — r ‖ s ‖ v, v ∈ {27, 28}.
+ * Matches the on-chain `_recoverSigner`, which calls ecrecover directly on
+ * the EIP-712 typed digest (no EIP-191 "Ethereum Signed Message" prefix).
+ */
+export function signRawDigest(digest: `0x${string}`, privateKey: `0x${string}`): `0x${string}` {
+  const sig = secp256k1.sign(toBytes(digest), toBytes(privateKey));
+  const v = sig.recovery + 27;
+  return `0x${sig.r.toString(16).padStart(64, "0")}${sig.s.toString(16).padStart(64, "0")}${v.toString(16).padStart(2, "0")}` as `0x${string}`;
 }

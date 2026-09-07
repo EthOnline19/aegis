@@ -10,7 +10,8 @@
   "dependencies": {
     "@bulwark/engine": "workspace:*",
     "@bulwark/agent-sdk": "workspace:*",
-    "viem": "^2.21.0"
+    "viem": "^2.21.0",
+    "@noble/curves": "^1.6.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

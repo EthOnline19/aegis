@@ -97,8 +97,28 @@ contract VerdictContract {
     /// @dev Blocklist for strike recording.
     IBlocklist public immutable BLOCKLIST;
 
+    /// @dev EIP-712 domain separator: binds every verdict signature to THIS
+    ///      deployment (chainid + contract address + name/version/salt).
+    ///      A signature valid here fails on any other deployment — replay
+    ///      across deployments or chains is impossible (review H2).
+    ///      Salt: deployment-scoped entropy; fixed here, chainid handles
+    ///      the chain dimension and address(this) the deployment dimension.
+    bytes32 public constant DOMAIN_SALT = keccak256("BULWARK.verdict-domain.v1");
+    string public constant DOMAIN_NAME = "BULWARK VerdictContract";
+    string public constant DOMAIN_VERSION = "1";
+    bytes32 public immutable DOMAIN_SEPARATOR;
+
+    /// @dev EIP-712 type hashes for the two signed payloads.
+    bytes32 public constant VERDICT_TYPEHASH =
+        keccak256("Verdict(bytes32 policyHash,address agent,address claimant,bytes32 txHash,address destination,uint96 lossAmount,uint96 payoutAmount,uint8 alibi,uint8 outcome,Reason[] reasons,uint64 timestamp)Reason(bytes4 tag,uint8 provenance,string detail)");
+    bytes32 public constant HOLD_VERDICT_TYPEHASH =
+        keccak256("HoldVerdict(uint256 holdId,address agent,bytes32 policyHash,uint8 tier)");
+    bytes32 private constant _REASON_TYPEHASH =
+        keccak256("Reason(bytes4 tag,uint8 provenance,string detail)");
+
     /// @dev Freshness window: a verdict must be submitted within this window.
     uint64 public constant VERDICT_FRESHNESS_SEC = 600;
+
 
     /// @dev digest => accepted verdict (append-only ledger).
     mapping(bytes32 digest => AcceptedVerdict) public verdicts;
@@ -154,6 +174,55 @@ contract VerdictContract {
         BLOCKLIST = IBlocklist(blocklist_);
         admin = msg.sender;
         watcher = msg.sender;
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)"),
+                keccak256(bytes(DOMAIN_NAME)),
+                keccak256(bytes(DOMAIN_VERSION)),
+                block.chainid,
+                address(this),
+                DOMAIN_SALT
+            )
+        );
+    }
+
+    /// @dev EIP-712 digest for a full verdict: keccak256(0x1901 ‖ domain ‖ structHash).
+    ///      The reasons array is hashed struct-by-struct per EIP-712 rules.
+    function verdictDigest712(BulwarkTypes.Verdict memory v) public view returns (bytes32) {
+        bytes32[] memory reasonHashes = new bytes32[](v.reasons.length);
+        for (uint256 i = 0; i < v.reasons.length; i++) {
+            reasonHashes[i] = keccak256(
+                abi.encode(_REASON_TYPEHASH, v.reasons[i].tag, v.reasons[i].provenance, v.reasons[i].detail)
+            );
+        }
+        bytes32 structHash = keccak256(
+            abi.encode(
+                VERDICT_TYPEHASH,
+                v.policyHash,
+                v.agent,
+                v.claimant,
+                v.txHash,
+                v.destination,
+                v.lossAmount,
+                v.payoutAmount,
+                v.alibi,
+                v.outcome,
+                keccak256(abi.encodePacked(reasonHashes)),
+                v.timestamp
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+    }
+
+    /// @dev EIP-712 digest for a hold verdict.
+    function holdVerdictDigest712(
+        uint256 holdId,
+        address agent,
+        bytes32 policyHash,
+        uint8 tier
+    ) public view returns (bytes32) {
+        bytes32 structHash = keccak256(abi.encode(HOLD_VERDICT_TYPEHASH, holdId, agent, policyHash, tier));
+        return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
     }
 
     // ----------------------------------------------------------------- //
@@ -192,11 +261,14 @@ contract VerdictContract {
     function submitVerdict(BulwarkTypes.Verdict calldata v, bytes calldata signature) external {
         if (msg.sender != watcher) revert NotWatcher();
 
-        bytes32 digest = v.verdictDigest();
+        // EIP-712 domain-bound digest (chainid + this address): the same
+        // verdict bytes produce a different digest on any other deployment,
+        // so cross-deployment replay fails the signature check (review H2).
+        bytes32 digest = verdictDigest712(v);
         if (verdicts[digest].acceptedAt != 0) revert DuplicateClaim();
 
-        // --- Signature check: the TEE signed exactly this verdict. ---
-        // ECDSA recover (OpenZeppelin's algorithm, inlined for zero deps).
+        // --- Signature check: the TEE signed exactly this verdict, on this
+        //     deployment's domain. ---
         address recovered = _recoverSigner(digest, signature);
         if (recovered != watcher) revert BadSignature();
 
@@ -247,6 +319,8 @@ contract VerdictContract {
     }
 
     /// @dev OpenZeppelin-style ECDSA recover, inlined (no external deps).
+    ///      The digest is the EIP-712 typed digest (already 0x1901-prefixed
+    ///      inside verdictDigest712) — signed directly, no EIP-191 wrapper.
     function _recoverSigner(bytes32 digest, bytes calldata sig) internal pure returns (address) {
         require(sig.length == 65, "BAD_SIG_LEN");
         bytes32 r;
@@ -265,8 +339,7 @@ contract VerdictContract {
         if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
             return address(0);
         }
-        bytes32 ethDigest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest));
-        return ecrecover(ethDigest, v, r, s);
+        return ecrecover(digest, v, r, s);
     }
 
     // ----------------------------------------------------------------- //
@@ -275,7 +348,8 @@ contract VerdictContract {
 
     /// @notice Route a TEE hold verdict to the GuardAccount:
     ///         clean (tier 0) → release; suspicious (tier 1) → freeze.
-    ///         The signature is over keccak(abi.encode(holdId, agent, policyHash, tier)).
+    ///         The signature is EIP-712 over this deployment's domain
+    ///         (HoldVerdict struct: holdId, agent, policyHash, tier).
     function submitHoldVerdict(
         uint256 holdId,
         address agent,
@@ -284,7 +358,7 @@ contract VerdictContract {
         bytes calldata signature
     ) external {
         if (msg.sender != watcher) revert NotWatcher();
-        bytes32 digest = keccak256(abi.encode(holdId, agent, policyHash, verdictTier));
+        bytes32 digest = holdVerdictDigest712(holdId, agent, policyHash, verdictTier);
         address recovered = _recoverSigner(digest, signature);
         if (recovered != watcher) revert BadSignature();
 

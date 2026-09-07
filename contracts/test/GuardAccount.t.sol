@@ -182,9 +182,8 @@ contract GuardAccountTest is BulwarkTest {
 
         // Watcher can no longer release a frozen hold.
         bytes32 policyHash = _policyHash();
-        bytes32 raw = keccak256(abi.encode(id, address(guard), policyHash, uint8(0)));
-        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", raw));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(watcherPk, prefixed);
+        bytes32 digest = verdicts.holdVerdictDigest712(id, address(guard), policyHash, uint8(0));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(watcherPk, digest);
         bytes memory sig = abi.encodePacked(r, s, v);
         vm.prank(vm.addr(watcherPk));
         vm.expectRevert(GuardAccount.HoldNotPending.selector);

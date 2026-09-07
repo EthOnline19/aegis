@@ -60,9 +60,10 @@ contract MutualPoolTest is BulwarkTest {
 
         // $90k payout > $45k capital (and no reinsurance in v1) → revert.
         BulwarkTypes.Verdict memory v = _coveredVerdict(bytes32(uint256(0x79)), attacker, 100_000e6, 90_000e6);
+        bytes memory sig = _sigFor(v); // sign before prank (staticcall consumes it)
         vm.prank(vm.addr(watcherPk));
         vm.expectRevert(MutualPool.InsufficientCapital.selector);
-        verdicts.submitVerdict(v, _sigFor(v));
+        verdicts.submitVerdict(v, sig);
     }
 
     function test_OnlyVerdictContractPays() public {
@@ -95,9 +96,8 @@ contract MutualPoolTest is BulwarkTest {
     }
 
     function _sigFor(BulwarkTypes.Verdict memory v) internal view returns (bytes memory) {
-        bytes32 digest = BulwarkTypes.verdictDigest(v);
-        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest));
-        (uint8 sv, bytes32 r, bytes32 s) = vm.sign(watcherPk, prefixed);
+        bytes32 digest = verdicts.verdictDigest712(v);
+        (uint8 sv, bytes32 r, bytes32 s) = vm.sign(watcherPk, digest);
         return abi.encodePacked(r, s, sv);
     }
 }

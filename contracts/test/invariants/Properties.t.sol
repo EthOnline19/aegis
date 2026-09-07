@@ -142,9 +142,8 @@ contract Properties is BulwarkTest {
     }
 
     function _sigFor(BulwarkTypes.Verdict memory v) internal view returns (bytes memory) {
-        bytes32 digest = BulwarkTypes.verdictDigest(v);
-        bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest));
-        (uint8 sv, bytes32 r, bytes32 s) = vm.sign(watcherPk, prefixed);
+        bytes32 digest = verdicts.verdictDigest712(v);
+        (uint8 sv, bytes32 r, bytes32 s) = vm.sign(watcherPk, digest);
         return abi.encodePacked(r, s, sv);
     }
 }
