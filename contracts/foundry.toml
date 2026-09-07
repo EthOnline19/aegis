@@ -9,7 +9,7 @@ verbosity = 3
 
 # Speed up CI runs; fuzz details live per-test
 [profile.default.fuzz]
-runs = 256
+runs = 1000
 
 [profile.invariant]
 runs = 128

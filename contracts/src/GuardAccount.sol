@@ -424,12 +424,11 @@ contract GuardAccount is IGuardAccount {
         if (_curfewActive(p)) {
             return (TIER_ELEVATED, bytes4(keccak256("CURFEW_HOUR")));
         }
-        if (amount >= (effectiveLimit * 3) / 4) {
-            return (TIER_ELEVATED, bytes4(keccak256("NEAR_PER_TX")));
-        }
-        if (_dailySpent + amount >= (p.dailyLimit * 4) / 5) {
-            return (TIER_ELEVATED, bytes4(keccak256("NEAR_DAILY")));
-        }
+        // NOTE: near-limit amounts, hour-of-day deviation, and amount-
+        // distribution anomalies are the WATCHER's behavioral signals —
+        // deliberately NOT on-chain lanes. On-chain elevates only on hard
+        // novelty (new recipient, curfew, blocklist strike); the soft 1%
+        // gets its forensic pass in the TEE, keeping routine instant.
         if (BLOCKLIST.hasAnyStrike(to) && !BLOCKLIST.isFlagged(to)) {
             return (TIER_ELEVATED, bytes4(keccak256("BLOCKLIST_STRIKE")));
         }
