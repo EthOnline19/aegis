@@ -253,6 +253,29 @@ contract GuardAccount is IGuardAccount {
         return _createHold(p, to, amount);
     }
 
+    /// @notice Persist the fact of a blocked VIOLATION-lane attempt (pricing
+    ///         signal for the telematics engine; subgraph-indexed).
+    /// @dev  propose() reverts on violations, so its events never persist.
+    ///      This non-reverting path is the on-chain record: anyone may relay
+    ///      the attempt (observed from the reverted call), and the counter
+    ///      + event survive. Unpermissioned by design — the attempt is a
+    ///      public fact from the reverted transaction; spam only inflates
+    ///      the counter, which pricing treats as a signal, not a fault.
+    function reportAttempt(address to, uint96 amount, bytes4 tag) external {
+        _attemptedBreaches += 1;
+        emit AttemptedBreach(0, bytes32(uint256(uint32(tag))), tag);
+        emit Classified(TIER_VIOLATION, to, amount, tag);
+    }
+
+    /// @dev Total blocked attempts, monotonic. Feeds the pricing flywheel
+    ///      (+15% load for 30 days after an attempted breach).
+    uint256 public _attemptedBreaches;
+
+    /// @dev Attempted-breach counter view (idiomatic accessor).
+    function attemptedBreaches() external view returns (uint256) {
+        return _attemptedBreaches;
+    }
+
     // ----------------------------------------------------------------- //
     //                        Verdict path (TEE)                         //
     // ----------------------------------------------------------------- //

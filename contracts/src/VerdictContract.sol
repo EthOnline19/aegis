@@ -397,14 +397,23 @@ contract VerdictContract {
         }
         if (v.outcome == uint8(BulwarkTypes.Outcome.ATTEMPTED_BREACH)) {
             // Attempted breaches record a strike on the shared blocklist.
-            if (
-                v.reasons.length > 0
-                    && (v.reasons[0].tag == BL_TAG_ON_BLOCKLIST || v.reasons[0].tag == BL_TAG_DRANER)
-            ) {
-                BLOCKLIST.report(v.destination, digest);
+            // Scan the FULL reasons array — the drainer reason may sit at
+            // any position (old code inspected only reasons[0]).
+            for (uint256 i = 0; i < v.reasons.length; i++) {
+                if (v.reasons[i].tag == BL_TAG_ON_BLOCKLIST || v.reasons[i].tag == BL_TAG_DRAINER) {
+                    BLOCKLIST.report(v.destination, digest);
+                    break;
+                }
             }
         }
     }
+
+    /// @dev Reason tags shared with the TS engine (blocklist routing).
+    ///      MUST match packages/engine/src/engine.ts byte-for-byte:
+    ///      "DRAINER_SIGNATURE" (the old BL_TAG_DRANER typo never matched,
+    ///      so drainer verdicts recorded zero strikes).
+    bytes4 public constant BL_TAG_ON_BLOCKLIST = bytes4(keccak256("ON_BLOCKLIST"));
+    bytes4 public constant BL_TAG_DRAINER = bytes4(keccak256("DRAINER_SIGNATURE"));
 
     // ----------------------------------------------------------------- //
     //                      Dispute / arbitration                        //
@@ -473,8 +482,4 @@ contract VerdictContract {
     function getVerdict(bytes32 digest) external view returns (AcceptedVerdict memory) {
         return verdicts[digest];
     }
-
-    /// @dev Reason tags shared with the TS engine (blocklist routing).
-    bytes4 public constant BL_TAG_ON_BLOCKLIST = bytes4(keccak256("ON_BLOCKLIST"));
-    bytes4 public constant BL_TAG_DRANER = bytes4(keccak256("DRANER_SIGNATURE"));
 }
