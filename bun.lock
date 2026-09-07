@@ -9,6 +9,17 @@
         "vitest": "^2.0.0",
       },
     },
+    "packages/api": {
+      "name": "@bulwark/api",
+      "version": "0.1.0",
+      "dependencies": {
+        "@bulwark/engine": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.5.0",
+        "vitest": "^2.0.0",
+      },
+    },
     "packages/engine": {
       "name": "@bulwark/engine",
       "version": "0.1.0",
@@ -32,6 +43,8 @@
   },
   "packages": {
     "@bulwark/agent-sdk": ["@bulwark/agent-sdk@workspace:packages/sdk"],
+
+    "@bulwark/api": ["@bulwark/api@workspace:packages/api"],
 
     "@bulwark/engine": ["@bulwark/engine@workspace:packages/engine"],
 
