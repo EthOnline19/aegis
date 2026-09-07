@@ -9,8 +9,8 @@
   "scripts": {
     "test": "bun run test:contracts && bun run test:js",
     "test:contracts": "cd contracts && forge test",
-    "test:js": "bun workspaces foreach --all run test",
-    "lint": "bun workspaces foreach --all run lint",
+    "test:js": "cd packages/engine && bunx vitest run && cd ../sdk && bunx vitest run && cd ../api && bunx vitest run",
+    "lint": "cd packages/engine && bunx tsc --noEmit && cd ../sdk && bunx tsc --noEmit && cd ../api && bunx tsc --noEmit",
     "demo": "cd packages/demo && bun run src/demo.ts",
     "api": "cd packages/api && bun run start",
     "dashboard": "cd packages/dashboard && bun run start",
