@@ -7,3 +7,10 @@ interface IGuardAccount {
 
     function freezeHold(uint256 holdId) external;
 }
+
+/// @dev GuardAccount as seen by PolicyRegistry (ownership authority).
+///      Used for first-attach authorization: the registry consults the
+///      account's immutable OWNER rather than trusting calldata.
+interface IGuardAccountOwner {
+    function OWNER() external view returns (address);
+}

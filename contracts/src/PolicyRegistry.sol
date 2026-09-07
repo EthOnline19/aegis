@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {BulwarkTypes} from "./BulwarkTypes.sol";
 import {IPolicyRegistry} from "./interfaces/IPolicyRegistry.sol";
+import {IGuardAccountOwner} from "./interfaces/IGuardAccount.sol";
 
 /// @title BULWARK PolicyRegistry — the constitution store.
 /// @notice Stores the versioned, hash-committed policy for each agent.
@@ -56,15 +57,25 @@ contract PolicyRegistry is IPolicyRegistry {
         uint32 next = latestVersion[agent] + 1;
         if (policy.version != next) revert BadVersion();
 
-        // First attach: the caller declares ownership and must be the owner field.
-        // Later attaches: only the recorded owner (or GuardAccount owner path).
         if (next > 1) {
+            // Later attaches: only the recorded policy owner may update.
             BulwarkTypes.Policy storage prev = _policies[agent];
-            if (prev.owner != msg.sender && msg.sender != address(this)) revert NotPolicyOwner();
+            if (prev.owner != msg.sender) revert NotPolicyOwner();
         } else {
-            // The GuardAccount's deploy flow calls attach via its own address;
-            // standalone first-attach requires owner == msg.sender.
-            if (msg.sender != policy.owner && msg.sender != agent) revert NotPolicyOwner();
+            // First attach: authorize against the GuardAccount's immutable
+            // OWNER, never against calldata (review C1 front-run). Either
+            // the owner calls directly, or the GuardAccount relays its
+            // owner's attach (deploy-flow pattern) — in both cases the
+            // policy MUST name that owner (they become the payout claimant).
+            // If `agent` is not a GuardAccount, the OWNER() call reverts —
+            // only GuardAccounts may hold policies.
+            address accountOwner = IGuardAccountOwner(agent).OWNER();
+            if (
+                (msg.sender != accountOwner && msg.sender != agent)
+                    || policy.owner != accountOwner
+            ) {
+                revert NotPolicyOwner();
+            }
         }
 
         _policies[agent] = policy;
