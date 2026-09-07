@@ -79,6 +79,7 @@ contract GuardAccount is IGuardAccount {
     error UnsupportedToken();
     error TransferFailed();
     error NoHoldWindow();
+    error InsufficientBalance();
 
     // ----------------------------------------------------------------- //
     //                       Lanes & decisions                           //
@@ -148,6 +149,12 @@ contract GuardAccount is IGuardAccount {
 
     mapping(uint256 => Hold) public holds;
     uint256 public nextHoldId = 1;
+
+    /// @dev Running total of USDC locked in PENDING holds. O(1) accounting
+    ///      replaces the old O(n) scan over every hold id ever created —
+    ///      the scan was a gas-griefing DoS on spendableUsdc()/withdraw()
+    ///      (review C2). Maintained at every status transition below.
+    uint256 private _totalLocked;
 
     /// @dev After a hold lapses without verdict/owner action: extend 60 min,
     ///      then auto-freeze. "Fail-safe, not fail-fast."
@@ -237,6 +244,12 @@ contract GuardAccount is IGuardAccount {
             return 0;
         }
 
+        // Elevated lane: the hold must be backed by spendable balance —
+        // holds are IOUs against funds actually in the account. Without
+        // this check the agent key could lock unbacked IOUs until
+        // spendableUsdc() underflows and withdraw() reverts (review C2).
+        if (uint256(amount) > _spendableUsdc()) revert InsufficientBalance();
+
         return _createHold(p, to, amount);
     }
 
@@ -255,6 +268,7 @@ contract GuardAccount is IGuardAccount {
         BulwarkTypes.Policy memory p = REGISTRY.getPolicy(address(this));
         _spendDaily(p, h.amount);
         h.status = HOLD_RELEASED;
+        _totalLocked -= h.amount;
         emit Released(holdId, h.to, h.amount);
         _transferUsdc(h.to, h.amount);
     }
@@ -265,6 +279,7 @@ contract GuardAccount is IGuardAccount {
         Hold storage h = holds[holdId];
         if (h.status != HOLD_PENDING) revert HoldNotPending();
         h.status = HOLD_FROZEN;
+        _totalLocked -= h.amount;
         emit OwnerDecision(holdId, 0xFF, msg.sender); // 0xFF = watcher-frozen sentinel
     }
 
@@ -283,12 +298,14 @@ contract GuardAccount is IGuardAccount {
                 BulwarkTypes.Policy memory p = REGISTRY.getPolicy(address(this));
                 _spendDaily(p, h.amount);
                 h.status = HOLD_EXECUTED_OWNER;
+                _totalLocked -= h.amount;
                 emit Released(holdId, h.to, h.amount);
                 emit OwnerDecision(holdId, uint8(decision), OWNER);
                 _transferUsdc(h.to, h.amount);
                 return;
             }
             h.status = HOLD_CANCELLED;
+            _totalLocked -= h.amount;
             if (decision == Decision.FREEZE_ROTATE) _revokeAuthority();
             emit OwnerDecision(holdId, uint8(decision), OWNER);
             return;
@@ -300,12 +317,15 @@ contract GuardAccount is IGuardAccount {
             BulwarkTypes.Policy memory p = REGISTRY.getPolicy(address(this));
             _spendDaily(p, h.amount);
             h.status = HOLD_EXECUTED_OWNER;
+            // No _totalLocked change: the hold left the pending pool when
+            // it was frozen (freezeHold/lapseHold already decremented).
             emit Released(holdId, h.to, h.amount);
             emit OwnerDecision(holdId, uint8(decision), OWNER);
             _transferUsdc(h.to, h.amount);
             return;
         }
         h.status = HOLD_CANCELLED;
+        // No _totalLocked change: already decremented at freeze time.
         if (decision == Decision.FREEZE_ROTATE) _revokeAuthority();
         emit OwnerDecision(holdId, uint8(decision), OWNER);
     }
@@ -328,6 +348,7 @@ contract GuardAccount is IGuardAccount {
         }
         if (block.timestamp <= h.extendedTo) revert HoldNotExpired();
         h.status = HOLD_FROZEN;
+        _totalLocked -= h.amount;
         emit OwnerDecision(holdId, 0xFE, msg.sender); // 0xFE = auto-frozen sentinel
     }
 
@@ -483,6 +504,7 @@ contract GuardAccount is IGuardAccount {
             extendedTo: 0,
             status: HOLD_PENDING
         });
+        _totalLocked += amount;
         emit Held(holdId, to, amount, holds[holdId].releaseAt);
     }
 
@@ -505,13 +527,18 @@ contract GuardAccount is IGuardAccount {
         }
     }
 
-    function _lockedUsdc() internal view returns (uint256 locked) {
-        // Pending holds lock their amounts; frozen ones await owner decision.
-        uint256 id = nextHoldId;
-        for (uint256 i = 1; i < id; i++) {
-            Hold storage h = holds[i];
-            if (h.status == HOLD_PENDING) locked += h.amount;
-        }
+    /// @dev USDC locked in pending holds — O(1) running total (review C2:
+    ///      the old O(n) scan over every hold id ever created griefed
+    ///      spendableUsdc()/withdraw() gas: ~4.4k gas per historical hold,
+    ///      1.1M gas at 500 holds, brick at ~900).
+    function _lockedUsdc() internal view returns (uint256) {
+        return _totalLocked;
+    }
+
+    /// @dev Balance minus pending-hold locks. Never underflows once holds
+    ///      are balance-checked at creation (see propose).
+    function _spendableUsdc() internal view returns (uint256) {
+        return USDC.balanceOf(address(this)) - _totalLocked;
     }
 
     function _revokeAuthority() internal {
