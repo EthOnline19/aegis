@@ -30,6 +30,7 @@ import MUTUAL_POOL from "../../../contracts/out/MutualPool.sol/MutualPool.json";
 import BLOCKLIST from "../../../contracts/out/Blocklist.sol/Blocklist.json";
 import USDC_MOCK from "../../../contracts/out/USDCMock.sol/USDCMock.json";
 import type { Policy } from "@bulwark/engine";
+import { toOnChainPolicy } from "@bulwark/engine";
 
 export const ALICE = "0x328809bc894f92807417d2dad6b7c998c1afdac6";
 export const BOB = "0x1d96f2f6bef1202e4ce1ff6dad0c2cb002861d3e";
@@ -130,8 +131,10 @@ export async function deployProtocol(
   await tx(senior, usdcAddr, USDC_MOCK.abi, "approve", [poolAddr, MAX_UINT256]);
   await tx(senior, poolAddr, MUTUAL_POOL.abi, "deposit", [0, parseUnits("25000", 6)]);
 
-  // --- Attach policy v1. ---
-  const policyArgs = {
+  // --- Attach policy v1 (single source: the engine-typed Policy, converted
+  //     to the on-chain shape by toOnChainPolicy — no hand-duplicated
+  //     literals; review H5). ---
+  const policy: Policy = {
     version: 1,
     agent: guardAddr,
     owner: amaraAddr,
@@ -141,15 +144,15 @@ export async function deployProtocol(
     dailyLimit: parseUnits("1000", 6),
     velocityLimit: 5,
     allowlist: [
-      { recipient: ALICE, cap: parseUnits("200", 6) },
-      { recipient: BOB, cap: parseUnits("400", 6) },
+      { recipient: ALICE as `0x${string}`, cap: parseUnits("200", 6) },
+      { recipient: BOB as `0x${string}`, cap: parseUnits("400", 6) },
     ],
-    curfewStart: 1440,
-    curfewEnd: 1440,
+    curfewStartMinute: 1440, // NO_CURFEW
+    curfewEndMinute: 1440,
     holdWindowSec: 120,
     sdkInstalled: true,
   };
-  await tx(deployer, registryAddr, POLICY_REGISTRY.abi, "attach", [guardAddr, policyArgs]);
+  await tx(deployer, registryAddr, POLICY_REGISTRY.abi, "attach", [guardAddr, toOnChainPolicy(policy)]);
 
   // --- Contract handles. ---
   const handle = <TAbi extends Abi>(address: Address, abi: TAbi): Contract<TAbi> =>
@@ -162,24 +165,7 @@ export async function deployProtocol(
     verdicts: handle(verdictsAddr, VERDICT_CONTRACT.abi),
     pool: handle(poolAddr, MUTUAL_POOL.abi),
     blocklist: handle(blocklistAddr, BLOCKLIST.abi),
-    policy: {
-      version: 1,
-      agent: guardAddr,
-      owner: amaraAddr,
-      coverageCap: parseUnits("2500", 6),
-      deductibleBps: 1000,
-      perTxLimit: parseUnits("200", 6),
-      dailyLimit: parseUnits("1000", 6),
-      velocityLimit: 5,
-      allowlist: [
-        { recipient: ALICE as `0x${string}`, cap: parseUnits("200", 6) },
-        { recipient: BOB as `0x${string}`, cap: parseUnits("400", 6) },
-      ],
-      curfewStartMinute: 1440,
-      curfewEndMinute: 1440,
-      holdWindowSec: 120,
-      sdkInstalled: true,
-    },
+    policy,
   };
 }
 

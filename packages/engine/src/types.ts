@@ -140,3 +140,45 @@ export function curfewActive(policy: Policy, timestamp: number): boolean {
   if (s < e) return minuteOfDay >= s && minuteOfDay < e;
   return minuteOfDay >= s || minuteOfDay < e; // overnight wrap (22:00 → 05:00)
 }
+
+/**
+ * The on-chain Policy shape — the literal struct from
+ * contracts/src/BulwarkTypes.sol (field names byte-identical, curfew
+ * fields carry their Solidity names). This type + converter are the SINGLE
+ * translation point between the TS Policy and the Solidity Policy; no
+ * package may hand-duplicate either shape again (review H5).
+ */
+export interface OnChainPolicy {
+  readonly version: number;
+  readonly agent: `0x${string}`;
+  readonly owner: `0x${string}`;
+  readonly coverageCap: bigint;
+  readonly deductibleBps: number;
+  readonly perTxLimit: bigint;
+  readonly dailyLimit: bigint;
+  readonly velocityLimit: number;
+  readonly allowlist: readonly RecipientCap[];
+  readonly curfewStart: number; // Solidity name; TS Policy: curfewStartMinute
+  readonly curfewEnd: number; // Solidity name; TS Policy: curfewEndMinute
+  readonly holdWindowSec: number;
+  readonly sdkInstalled: boolean;
+}
+
+/** TS Policy → on-chain Policy: the one documented rename, applied once. */
+export function toOnChainPolicy(policy: Policy): OnChainPolicy {
+  return {
+    version: policy.version,
+    agent: policy.agent,
+    owner: policy.owner,
+    coverageCap: policy.coverageCap,
+    deductibleBps: policy.deductibleBps,
+    perTxLimit: policy.perTxLimit,
+    dailyLimit: policy.dailyLimit,
+    velocityLimit: policy.velocityLimit,
+    allowlist: policy.allowlist,
+    curfewStart: policy.curfewStartMinute,
+    curfewEnd: policy.curfewEndMinute,
+    holdWindowSec: policy.holdWindowSec,
+    sdkInstalled: policy.sdkInstalled,
+  };
+}
