@@ -193,6 +193,16 @@ export function judgeBreach(policy: Policy, tx: Transaction, facts: BehavioralFa
       provenance: Provenance.COMPUTED,
       detail: "breach breaks a machine-checkable policy rule",
     });
+  } else {
+    // Parametric gate: a covered event IS a policy violation. An external
+    // origin alone is not a trigger — e.g. an owner-approved hold release
+    // to an allowlisted recipient within caps executes legitimately, and
+    // the pool must not pay for it.
+    reasons.push({
+      tag: "NO_POLICY_VIOLATION",
+      provenance: Provenance.COMPUTED,
+      detail: "loss did not break any policy rule — not a covered event",
+    });
   }
 
   // Case 6: owner-authorized → DENIED. The act of ordering is confessing.
@@ -216,6 +226,18 @@ export function judgeBreach(policy: Policy, tx: Transaction, facts: BehavioralFa
   // No verifiable external provenance and no SDK → capped-at-25% territory
   // (plan §21). v1 demo path: require EXTERNAL for full coverage.
   if (alibi !== Alibi.EXTERNAL) {
+    // ... unchanged capped tier below, but only when the policy was violated.
+    if (!violated) {
+      return {
+        tier: Tier.ROUTINE,
+        outcome: Outcome.DISMISSED,
+        alibi,
+        payoutAmount: 0n,
+        lossAmount: tx.amount,
+        reasons,
+        holdAction: "NONE",
+      };
+    }
     reasons.push({
       tag: "PROVENANCE_UNVERIFIABLE",
       provenance: Provenance.VERIFIED,
@@ -227,6 +249,19 @@ export function judgeBreach(policy: Policy, tx: Transaction, facts: BehavioralFa
       outcome: Outcome.COVERED,
       alibi,
       payoutAmount: capped,
+      lossAmount: tx.amount,
+      reasons,
+      holdAction: "NONE",
+    };
+  }
+
+  // External instruction + NO policy violation → not a covered event either.
+  if (!violated) {
+    return {
+      tier: Tier.ROUTINE,
+      outcome: Outcome.DISMISSED,
+      alibi,
+      payoutAmount: 0n,
       lossAmount: tx.amount,
       reasons,
       holdAction: "NONE",

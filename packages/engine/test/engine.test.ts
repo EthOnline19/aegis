@@ -234,6 +234,33 @@ describe("judgeBreach", () => {
     expect(v.payoutAmount).toBe(135_000_000n / 4n);
     expect(v.reasons.some((r) => r.tag === "PROVENANCE_UNVERIFIABLE")).toBe(true);
   });
+
+  it("external origin but NO policy violation → NOT covered (parametric gate)", () => {
+    // An owner-approved hold release to allowlisted ALICE, within her cap,
+    // normal hour, no strikes, no drainer calldata. The instruction came
+    // through a non-signing channel (origin "web"), so the old engine would
+    // pay out in full. But a covered event REQUIRES a policy violation —
+    // nothing was violated here, so the pool must not pay.
+    const v = judgeBreach(
+      POLICY,
+      tx({
+        to: ALICE,
+        amount: 150_000_000n,
+        instruction: {
+          digest: "0xinstr" as `0x${string}`,
+          origin: "web",
+          ownerSigned: false,
+          timestamp: 1_772_028_000,
+          teeCosigned: true,
+          prev: "0x0" as `0x${string}`,
+        },
+      }),
+      QUIET_FACTS,
+    );
+    expect(v.outcome).not.toBe(Outcome.COVERED);
+    expect(v.payoutAmount).toBe(0n);
+    expect(v.reasons.some((r) => r.tag === "NO_POLICY_VIOLATION")).toBe(true);
+  });
 });
 
 // --------------------------------------------------------------------- //
