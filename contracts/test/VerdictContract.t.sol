@@ -136,27 +136,28 @@ contract VerdictContractTest is BulwarkTest {
     }
 
     function test_DisputeRerunAndArbitration() public {
-        // Case 7: wrongful verdict → dispute → re-run → escalate → overturn.
+        // Case 7 (v1 scope): wrongful verdict → dispute → re-run window.
+        // Staked arbitration is v2 — escalate()/concludeArbitration() must
+        // fail loudly (NotImplementedInV1) and accept no ETH.
         BulwarkTypes.Verdict memory v = _coveredVerdict(bytes32(uint256(0x2A046)), carol, 120e6, 108e6);
         _submitVerdict(v);
 
         bytes32 digest = verdicts.verdictDigest712(v);
         verdicts.dispute(digest);
 
-        (, address opener,,) = _disputeOf(digest);
+        (, address opener,) = _disputeOf(digest);
         assertEq(opener, address(this));
 
         verdicts.requestRerun(digest);
 
-        // Escalate with stake (1 ether).
+        // Escalation: cleanly rejected, no ETH accepted.
+        uint256 balBefore = address(verdicts).balance;
+        vm.expectRevert(VerdictContract.NotImplementedInV1.selector);
         verdicts.escalate{value: 1 ether}(digest);
+        assertEq(address(verdicts).balance, balBefore, "no ETH accepted");
 
-        // Arbiter concludes: overturned.
-        verdicts.setArbiter(attacker, true);
-        vm.prank(attacker);
-        uint256 balBefore = address(this).balance;
+        vm.expectRevert(VerdictContract.NotImplementedInV1.selector);
         verdicts.concludeArbitration(digest, true);
-        assertEq(address(this).balance, balBefore + 1 ether, "stake refunded on overturn");
     }
 
     function _sigFor(BulwarkTypes.Verdict memory v) internal view returns (bytes memory) {
@@ -168,9 +169,9 @@ contract VerdictContractTest is BulwarkTest {
     function _disputeOf(bytes32 digest)
         internal
         view
-        returns (VerdictContract.DisputeState state, address opener, uint256 stake, uint256 openedAt)
+        returns (VerdictContract.DisputeState state, address opener, uint256 openedAt)
     {
-        (state, opener, stake, openedAt) = verdicts.disputes(digest);
+        (state, opener, openedAt) = verdicts.disputes(digest);
     }
     receive() external payable {}
 }

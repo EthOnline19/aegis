@@ -40,9 +40,11 @@ contract VerdictContract {
     event Reopened(bytes32 indexed digest, address indexed by);
 
     /// @dev Escalation to staked arbitration (3 auditors).
+    /// @dev v2 (staked arbitration) — see escalate(). Not emitted in v1.
     event Escalated(bytes32 indexed digest, address indexed by, uint256 stake);
 
     /// @dev Arbitration concluded: overturned or upheld.
+    /// @dev v2 (staked arbitration) — see concludeArbitration(). Not emitted in v1.
     event ArbitrationConcluded(bytes32 indexed digest, bool overturned, address indexed by);
 
     /// @dev A strike was recorded on the shared blocklist.
@@ -77,6 +79,7 @@ contract VerdictContract {
     error BadStake();
     error PoolNotWired();
     error Deadlock();
+    error NotImplementedInV1();
 
     // ----------------------------------------------------------------- //
     //                            Storage                                //
@@ -129,11 +132,12 @@ contract VerdictContract {
     /// @dev Dispute state per digest.
     mapping(bytes32 digest => Dispute) public disputes;
 
-    /// @dev Arbiters authorized for staked escalation.
-    mapping(address arbiter => bool) public isArbiter;
+    /// @dev Arbiters authorized for staked escalation — v2 (Case 7).
+    ///      Removed in v1 along with the exploitable escrow path; the
+    ///      DisputeState enum keeps its ARBITRATION values documented.
+    // mapping(address arbiter => bool) public isArbiter;   // v2
+    // uint256 public constant ARBITRATION_STAKE = 1 ether; // v2
 
-    /// @dev Minimum stake for arbitration.
-    uint256 public constant ARBITRATION_STAKE = 1 ether;
 
     struct AcceptedVerdict {
         address agent;
@@ -159,7 +163,7 @@ contract VerdictContract {
     struct Dispute {
         DisputeState state;
         address disputeOpener;
-        uint256 stake; // escrowed arbiter stake
+        // uint256 stake; — v2: escrowed arbiter stake (no escrow in v1)
         uint256 openedAt;
     }
 
@@ -245,12 +249,9 @@ contract VerdictContract {
         emit PoolSet(previous, pool_);
     }
 
-    function setArbiter(address arbiter, bool allowed) external {
-        if (msg.sender != admin) revert NotAdmin();
-        if (arbiter == address(0)) revert ZeroAddress();
-        isArbiter[arbiter] = allowed;
-        emit ArbiterSet(arbiter, allowed);
-    }
+    /// @dev setArbiter — v2 (Case 7): arbiters existed only for the staked
+    ///      escalation path, which v1 removed. Re-add with the real
+    ///      3-of-N design.
 
     // ----------------------------------------------------------------- //
     //                      Verdict submission                           //
@@ -443,36 +444,25 @@ contract VerdictContract {
         d.state = DisputeState.RERUN_PENDING;
     }
 
-    /// @notice Escalate to staked arbitration: 3 independent auditors stake
-    ///         USDC on the correct verdict; majority rules; liars slashed.
+    /// @notice Staked arbitration is PLANNED FOR v2 — deliberately not
+ ///         implemented in v1.
+    /// @dev  The v0 sketch here was exploitable (single-arbiter conclusion,
+    ///      no quorum, anyone could add stake to anyone's dispute, ETH
+    ///      stranded on upheld outcomes — review C3) and it is not on the
+    ///      demo path. v1 fails loudly instead: no ETH can be escrowed, so
+    ///      nothing can be stranded or stolen. The v2 design (3-of-N
+    ///      staked auditors, majority rules, liars slashed) is sketched in
+    ///      BULWARK_MASTER_PLAN.md Case 7.
     function escalate(bytes32 digest) external payable {
-        Dispute storage d = disputes[digest];
-        if (d.state != DisputeState.UNDER_REVIEW && d.state != DisputeState.RERUN_PENDING) {
-            revert NotReopenable();
-        }
-        if (msg.value < ARBITRATION_STAKE) revert BadStake();
-        d.state = DisputeState.ARBITRATION;
-        d.stake += msg.value;
-        emit Escalated(digest, msg.sender, msg.value);
+        digest; // referenced for a stable signature; no state is touched
+        revert NotImplementedInV1();
     }
 
-    /// @notice Arbiters conclude: overturn (dismissed, no scar) or uphold.
-    ///         Escrowed stake refunds on overturn; slashed on uphold-fraud.
+    /// @notice See escalate() — arbitration conclusion is v2 (Case 7).
     function concludeArbitration(bytes32 digest, bool overturn) external {
-        if (!isArbiter[msg.sender]) revert NotArbiter();
-        Dispute storage d = disputes[digest];
-        if (d.state != DisputeState.ARBITRATION) revert NotReopenable();
-
-        d.state = overturn ? DisputeState.FINAL_OVERTURNED : DisputeState.FINAL_UPHELD;
-        emit ArbitrationConcluded(digest, overturn, msg.sender);
-
-        if (overturn) {
-            // Refund the escrowed stake to the dispute opener.
-            (bool ok,) = payable(d.disputeOpener).call{value: d.stake}("");
-            if (!ok) revert Deadlock();
-        }
-        // Upheld: the stake stays in this contract as slashed-liar buffer;
-        // admin sweeps. Lies are expensive; truth is free.
+        digest; // ditto
+        overturn; // ditto
+        revert NotImplementedInV1();
     }
 
     // ----------------------------------------------------------------- //
