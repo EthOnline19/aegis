@@ -27,4 +27,5 @@ coverage.json
 .DS_Store
 *.log
 .idea
+.wsl/
 .vscode
