@@ -88,3 +88,15 @@ Registry addresses live in one TS module (`packages/sdk/src/erc8004/addresses.ts
 - No OASF skill evaluation, no validation-request marketplace participation (we are always requester + our watcher is always responder).
 - No reputation aggregation UI (dashboard reads stay via Coverage API; consumers read registries directly).
 - No `appendResponse` usage (client-response threads are v2).
+
+## 9. Known gap (logged 2026-09-08)
+
+- `VerdictContract.submitHoldVerdict` (contracts/src/VerdictContract.sol:354) never
+  emits the declared `HoldVerdictRouted(uint256,uint256,address,bool)` event — the
+  emission site is missing on-chain. The orchestrator
+  (`packages/api/scripts/arc-orchestrator.ts`) subscribes to `HoldVerdictRouted` and
+  its handle path is implemented + unit-tested, but it is NEVER exercised by a real
+  on-chain event until the contract emits it. Any change-set touching
+  VerdictContract MUST add `emit HoldVerdictRouted(...)` after the
+  releaseHold/freezeHold branch (VerdictContract.sol:366-372) plus a test, or the
+  hold→feedback-only path stays dead code.
