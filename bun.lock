@@ -14,6 +14,7 @@
       "name": "@bulwark/api",
       "version": "0.1.0",
       "dependencies": {
+        "@bulwark/agent-sdk": "workspace:*",
         "@bulwark/engine": "workspace:*",
       },
       "devDependencies": {

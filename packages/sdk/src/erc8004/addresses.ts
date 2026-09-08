@@ -13,15 +13,21 @@
 /** Arc testnet (Circle's Arc public testnet). */
 export const ARC_TESTNET_CHAIN_ID = 5_042_002 as const;
 
+/** The three canonical registry addresses, as one bundle. */
+export interface Erc8004Registries {
+  readonly identity: string;
+  readonly reputation: string;
+  readonly validation: string;
+}
 /** Canonical ERC-8004 registry addresses (same on every supported chain). */
-export const ERC8004_ADDRESSES = {
+export const ERC8004_ADDRESSES: Erc8004Registries = {
   identity: "0x8004A818BFB912233c491871b3d84c89A494BD9e",
   reputation: "0x8004B663056A597Dffe9eCcC1965A193B7388713",
   validation: "0x8004Cb1BF31DAf7788923b405b754f57acEB4272",
 } as const;
 
 /** Per-chain registry bundle. Arc testnet is the only live deployment. */
-export const ERC8004_DEPLOYMENTS: Record<number, typeof ERC8004_ADDRESSES> = {
+export const ERC8004_DEPLOYMENTS: Record<number, Erc8004Registries> = {
   [ARC_TESTNET_CHAIN_ID]: ERC8004_ADDRESSES,
 };
 
@@ -30,7 +36,7 @@ export const ERC8004_DEPLOYMENTS: Record<number, typeof ERC8004_ADDRESSES> = {
  * posting to a registry we have not verified (Step 1) must fail loudly,
  * never silently target a lookalike deployment.
  */
-export function erc8004ForChain(chainId: number): typeof ERC8004_ADDRESSES {
+export function erc8004ForChain(chainId: number): Erc8004Registries {
   const deployed = ERC8004_DEPLOYMENTS[chainId];
   if (!deployed) {
     throw new Error(`no ERC-8004 registries for chainId ${chainId} (supported: ${Object.keys(ERC8004_DEPLOYMENTS).join(", ")})`);

@@ -12,7 +12,7 @@
  *   (plan §31): callers sign writes via their own wallet; this layer
  *   builds calldata and reads chain state.
  */
-export { erc8004ForChain, ERC8004_ADDRESSES, ARC_TESTNET_CHAIN_ID } from "./addresses.ts";
+export { erc8004ForChain, ERC8004_ADDRESSES, ARC_TESTNET_CHAIN_ID, type Erc8004Registries } from "./addresses.ts";
 export { IDENTITY_ABI, VALIDATION_ABI, REPUTATION_ABI, VERDICT_ACCEPTED_EVENT_ABI } from "./abi.ts";
 export { deriveRequestHash, toFeedbackInt128, fromFeedbackInt128, reputationSum, keccakUtf8 } from "./encoding.ts";
 export {

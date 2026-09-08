@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@bulwark/engine": "workspace:*"
+    "@bulwark/engine": "workspace:*",
+    "@bulwark/agent-sdk": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

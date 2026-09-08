@@ -148,11 +148,11 @@ describe("feedback int128 encoding", () => {
 
 describe("client calldata encodings", () => {
   const validation = new ValidationClient(
-    ERC8004_ADDRESSES.validation,
+    ERC8004_ADDRESSES.validation as `0x${string}`,
     {} as never, // no reads needed for calldata tests
     VALIDATION_ABI,
   );
-  const reputation = new ReputationClient(ERC8004_ADDRESSES.reputation, {} as never, REPUTATION_ABI);
+  const reputation = new ReputationClient(ERC8004_ADDRESSES.reputation as `0x${string}`, {} as never, REPUTATION_ABI);
 
   it("validationRequestData encodes (validatorAddress, agentId, requestURI, requestHash)", () => {
     const data = validation.validationRequestData({

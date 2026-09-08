@@ -307,3 +307,5 @@ class JsonChainStore {
     writeFileSync(this.path, JSON.stringify({ version: 1, entries }, null, 2));
   }
 }
+
+export * from "./erc8004/index.ts";
