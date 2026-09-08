@@ -1,6 +1,6 @@
-# ERC-8004 Integration — Step 2 Design (v1, Arc testnet)
+# ERC-8004 Integration — Step 2 Design (v2, Arc testnet)
 
-**Status:** Draft for approval. No integration code written yet.
+**Status:** Approved design-of-record (v2 mapping). Implementation: Step 3, test-first against local mocks.
 **Step 1 verified inputs (canonical CREATE2 registries, Arc chain 5042002, all v`2.0.0`, verified live via `eth_getCode` + calls):**
 
 | Registry | Address | Poster key |
@@ -32,7 +32,7 @@
   4. Watcher key: `validationResponse(requestHash, score, responseURI, responseHash, tag)`.
   5. Consumer: `getValidationStatus(requestHash)` → checks `validatorAddress == watcher` → reads score. Or `getSummary(agentId, [watcher], tag)` for the aggregate. Consumers never parse our API; the registry is the interface.
 - **Writes are one-time.** `validationRequest` reverts on requestHash reuse ("exists"); `validationResponse` is first-answer-final (no update path). Orchestrator is idempotent: skip if `getValidationStatus(requestHash)` doesn't revert.
-- **Score mapping (0–100), authoritative:**
+- **Score mapping (0–100), authoritative:** the three signals BULWARK publishes (validation score, reputation value, internal pricing load) must rank event severity identically — fraud < claim-loss < attempt. Validation scores reflect *incident outcome quality* (how well the machine handled the event), which is why COVERED (containment worked, payout made) sits at 25 and not 0:
   - `COVERED` → **25** — agent was breached with real loss (bad) but containment + payout worked (not 0).
   - `ATTEMPTED` → **75** — attacked, defenses held, no loss (good).
   - `DENIED_OWNER_ORIGIN` → **0** — owner-signed breach; trust hit.
@@ -41,14 +41,18 @@
 ## 3. Reputation Registry = the driving record
 
 - One `giveFeedback(agentId, value, valueDecimals, tag1, tag2, endpoint, feedbackURI, feedbackHash)` per accepted verdict, posted by the **reputation key** — a separate EOA that is neither NFT owner nor operator (the self-feedback guard `isAuthorizedOrOwner(client, agentId)` must be false).
-- **Value mapping (int128, valueDecimals=2, |value| ≤ 1e38):**
-  - `COVERED` → **−10000** (−100.00) — breached with real loss; strong negative.
-  - `DENIED_OWNER_ORIGIN` → **−10000** (−100.00) — owner-signed breach; strongest negative.
-  - `ATTEMPTED` → **+2500** (+25.00) — attacked, held; positive.
+- **Value mapping (int128, valueDecimals=2, |value| ≤ 1e38) — v2, approved.** Reputation and pricing answer different questions about the same events, so the two systems are allowed to differ in sign where their questions differ, but must never contradict each other on severity *ordering*:
+  - `DENIED_OWNER_ORIGIN` → **−10000** (−100.00, the floor). Proven fraud against the pool — intent, not accident. Master plan: permanently scarred insurability; no recovery path in pricing either. Kept at the floor by design.
+  - `COVERED` → **−2500** (−25.00). Reasoning: the pricing engine already draws the category boundary — a first paid claim is ×3 for 6 months then back to base (recoverable; the −60% clean-streak discount rebuilds within ~2 quarters), while fraud is a permanent scar. That is a difference of category (intent), not magnitude, so COVERED must sit in a clearly recoverable band well clear of the floor rather than at a midpoint implying fraud is merely "2× worse." −25 = one quarter of the floor: material enough to reflect the engine's biggest short-term signal (a 300% premium spike; −10 would understate it), recoverable as clean history accumulates, and composing correctly under repetition (see aggregation below: a second claim drives the aggregate to −50, tracking pricing's ×3→×5 repeat escalation, while never reaching the fraud floor).
+  - `ATTEMPTED` → **+500** (+5.00). Reasoning: pricing answers "what is the expected loss going forward?" — being targeted genuinely predicts further attempts, so its +15%/30-day load is actuarially correct and stays. Reputation answers "did this agent's protection hold when actually tested?" — it did, which is real but single-data-point evidence. +5 is mild corroboration, not compensation: negligible next to the strong positive signal in this system (a 180-day clean streak earning −60% premium), and in absolute magnitude both records agree the event is minor (pricing: 0.15 × 2% base = +0.3% of cap for one month; reputation: +5 on a ±100 scale) — they differ only in sign, each correct for its own question. This deliberate divergence is documented here so reviewers see it was considered, not missed.
   - `DISMISSED` → never posted (same rule as §2).
-- `tag1 = "bulwark-verdict"` (indexed, enables on-chain `getSummary` filtering), `tag2` = outcome string (`covered` / `attempted` / `denied-owner-origin`).
+- **Aggregation semantics (verified against the reference implementation, `ReputationRegistryUpgradeable.getSummary`):** the registry's summary helper **averages** (sum of `value × 10^(18−decimals)` normalized to WAD, divided by count, rescaled to the mode decimals) — it does NOT sum. Consequences, handled explicitly:
+  1. The v2 reasoning's "second claim → −50" composition holds **only under a summing consumer**. `getSummary`'s average would instead pull a lone −25 back toward neutral as clean entries accumulate around it — silently breaking repeat-offense escalation. The design therefore does NOT rely on the raw value average to convey repetition.
+  2. Repetition is conveyed by **count + tag2**, both first-class on-chain: `tag1 = "bulwark-verdict"` (indexed) filters to BULWARK's feedback; `tag2` = outcome string; `getSummary(agentId, [reputationKey], "bulwark-verdict", "")` returns `(count, avgValue)` — `count` of covered claims is the repetition signal, recoverable by any consumer in one call. Per-claim values remain individually readable via `readFeedback`/`readAllFeedback` (unaggregated).
+  3. **BULWARK's own display (dashboard / résumé / Coverage API) computes a SUM, not the registry default:** `reputationSum(agentId) = Σ readAllFeedback(...).values` over `tag1="bulwark-verdict"`, non-revoked. The sum is the "net trust mass" reading: one −25 event dents it by exactly 25, a second by another 25 (→ −50), +5 containment events push it back up, and a −100 fraud entry dominates. The registry average is surfaced alongside as the "per-event quality" reading. Both are documented in the API so no consumer mistakes one for the other.
+- `tag2` values: `covered` / `attempted` / `denied-owner-origin`.
 - `endpoint = bulwark://verdicts/<digest>` — machine link back to the VerdictContract ledger.
-- Index mapping is receipt-derived: the orchestrator maps `digest → feedbackIndex` from its own tx receipt (the next global feedbackIndex is not front-run-deterministic). No lookup assumes an index before our tx confirms.
+- Index mapping is receipt-derived: the orchestrator maps `digest → feedbackIndex` from its own tx receipt (the next per-client feedbackIndex is not front-run-deterministic). No lookup assumes an index before our tx confirms. `revokeFeedback` is reserved for a proven-wrong verdict (dispute overturn), matching `dispute()`/`requestRerun()`.
 
 ## 4. Contract surface copied into the repo
 
@@ -68,10 +72,9 @@ Registry addresses live in one TS module (`packages/sdk/src/erc8004/addresses.ts
 
 ## 6. Test plan (test-first, per repo discipline)
 
-1. **Contract tests** (`contracts/test/Erc8004Integration.t.sol`): happy path request→response per outcome; authorization reverts (non-owner request, non-validator response, self-feedback revert); idempotency (double request reverts "exists"); score/value mapping pinned for all four outcomes.
-2. **Unit tests** (`packages/sdk/test/erc8004.test.ts`): `requestHash` derivation stability; client encodings (int128 value, decimals, tags) against registry ABI; binding confirmation logic.
-3. **Orchestrator tests** (`packages/api/test/erc8004-orchestrator.test.ts`): event → three posts, in order, with correct senders; skip-if-posted idempotency; unknown-outcome → no post (fail closed); DISMISSED → no post.
-4. Full existing suite stays green before any commit (forge 74 + engine 30 + sdk 15 + api 12 + tsc ×3).
+1. **Contract tests** (`contracts/test/Erc8004Integration.t.sol`): happy path request→response per outcome; authorization reverts (non-owner request, non-validator response, self-feedback revert); idempotency (double request reverts "exists"); score/value mapping pinned for all four outcomes; `getSummary` average semantics pinned (WAD normalize, divide-by-count) + sum-based `reputationSum` derivation demonstrated from `readAllFeedback`.
+2. **Orchestrator tests** (`packages/api/test/erc8004-orchestrator.test.ts`): event → three posts, in order, with correct senders; skip-if-posted idempotency; unknown-outcome → no post (fail closed); DISMISSED → no post.
+3. **Unit tests** (`packages/sdk/test/erc8004.test.ts`): `requestHash` derivation stability; client encodings (int128 value, decimals, tags) against registry ABI; binding confirmation logic; `reputationSum` helper over mocked feedback entries.
 
 ## 7. Sequencing to Arc (Step 4 preview, not started)
 
