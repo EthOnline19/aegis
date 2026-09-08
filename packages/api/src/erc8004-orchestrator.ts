@@ -41,6 +41,7 @@ import {
   REPUTATION_ABI,
   SCORE_BY_OUTCOME,
   TAG1,
+  TAG2_BY_OUTCOME,
   VALIDATION_ABI,
   VALUE_BY_OUTCOME,
   VALUE_DECIMALS,
@@ -238,7 +239,7 @@ export class Erc8004Orchestrator {
           VALUE_BY_OUTCOME[outcome],
           VALUE_DECIMALS,
           TAG1,
-          outcome,
+          TAG2_BY_OUTCOME[outcome],
           verdictEndpoint(trigger.digest),
           "", // feedbackURI — the endpoint above already points at the verdict
           trigger.digest, // feedbackHash binds the entry to the verdict
