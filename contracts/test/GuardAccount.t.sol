@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {BulwarkTest} from "./BulwarkTest.t.sol";
 import {BulwarkTypes} from "../src/BulwarkTypes.sol";
 import {GuardAccount} from "../src/GuardAccount.sol";
+import {VerdictContract} from "../src/VerdictContract.sol";
 
 /// @title GuardAccount lane classification + hold window tests.
 /// @notice Covers the plan's Cases 1–4: routine day, cleared near-miss,
@@ -126,6 +127,25 @@ contract GuardAccountTest is BulwarkTest {
         assertEq(usdc.balanceOf(carol), 0, "no funds move on freeze");
         (,,,,, uint8 status) = guard.holds(id);
         assertEq(status, 2, "HOLD_FROZEN");
+    }
+
+    /// @dev Regression (design §9 gap): submitHoldVerdict MUST emit
+    ///      HoldVerdictRouted — the ERC-8004 orchestrator's hold mirror is
+    ///      driven by this event; without it the hold path is dead code.
+    function test_HoldVerdictRoutedEmittedOnCleanRelease() public {
+        uint256 id = _propose(carol, 150e6);
+        vm.expectEmit(true, true, false, false, address(verdicts));
+        emit VerdictContract.HoldVerdictRouted(id, address(guard), true);
+        _submitHoldVerdict(id, 0); // clean
+        assertEq(usdc.balanceOf(carol), 150e6, "release still lands");
+    }
+
+    function test_HoldVerdictRoutedEmittedOnSuspiciousFreeze() public {
+        uint256 id = _propose(carol, 150e6);
+        vm.expectEmit(true, true, false, false, address(verdicts));
+        emit VerdictContract.HoldVerdictRouted(id, address(guard), false);
+        _submitHoldVerdict(id, 1); // suspicious
+        assertEq(usdc.balanceOf(carol), 0, "freeze still lands");
     }
 
     function test_OwnerFreezeRotateKillsAgent() public {

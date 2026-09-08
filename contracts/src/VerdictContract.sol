@@ -363,6 +363,12 @@ contract VerdictContract {
         address recovered = _recoverSigner(digest, signature);
         if (recovered != watcher) revert BadSignature();
 
+        // Event BEFORE the external GuardAccount call (CEI: honest log even
+        // if the guard reverts, e.g. hold already decided) — matches _route's
+        // effects-first discipline and keeps the orchestrator's mirror feed
+        // fed for every routed hold verdict.
+        emit HoldVerdictRouted(holdId, agent, verdictTier == 0);
+
         if (verdictTier == 0) {
             IGuardAccount(agent).releaseHold(holdId);
         } else if (verdictTier == 1) {
