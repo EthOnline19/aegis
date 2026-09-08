@@ -39,6 +39,7 @@ import {
   deriveRequestHash,
   erc8004ForChain,
   type Erc8004Registries,
+  verdictEndpoint,
 } from "@bulwark/agent-sdk";
 
 const RPC = process.env.ARC_RPC_URL ?? "https://rpc.testnet.arc.io";
@@ -164,9 +165,10 @@ async function main(): Promise<void> {
     agentIdBig,
     VALUE_BY_OUTCOME.ATTEMPTED,
     VALUE_DECIMALS,
+    TAG1,
     TAG2_BY_OUTCOME.ATTEMPTED,
+    verdictEndpoint(digest),
     `bulwark://verdicts/${digest}`,
-    "",
     digest,
   ]);
 
