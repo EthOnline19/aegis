@@ -6,9 +6,9 @@ solc_version = "0.8.30"
 optimizer = true
 optimizer_runs = 10_000
 verbosity = 3
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
 
 # Speed up CI runs; fuzz details live per-test
-[profile.default.fuzz]
 runs = 1000
 
 [profile.invariant]
