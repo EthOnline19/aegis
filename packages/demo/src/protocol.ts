@@ -188,10 +188,12 @@ export async function attachProtocol(
   record: DeploymentRecord,
 ): Promise<Protocol> {
   const a = record.contracts;
-  const handle = <TAbi extends Abi>(address: Address, abi: TAbi): Contract<TAbi> =>
-    getContract({ address, abi, client: { public: c.public, wallet: c.amara } }) as Contract<TAbi>;
-  const registry = handle(a.policyRegistry as Address, POLICY_REGISTRY.abi);
-  const guard = handle(a.guardAccount as Address, GUARD_ACCOUNT.abi);
+  // viem's ABI inference degenerates on forge artifacts under this tsconfig
+  // (pre-existing — see deployProtocol); route handles through `unknown`.
+  const handle = (address: Address, abi: unknown): unknown =>
+    getContract({ address, abi: abi as Abi, client: { public: c.public, wallet: c.amara } });
+  const registry = handle(a.policyRegistry as Address, POLICY_REGISTRY.abi) as Protocol["registry"];
+  const guard = handle(a.guardAccount as Address, GUARD_ACCOUNT.abi) as Protocol["guard"];
 
   // viem's inference over forge artifact ABIs degenerates under this tsconfig
   // (pre-existing; see deployProtocol) — pin the on-chain struct shape here.
@@ -210,14 +212,14 @@ export async function attachProtocol(
     holdWindowSec: bigint;
     sdkInstalled: boolean;
   };
-  const version = (await registry.read.latestVersion([a.guardAccount as Address]))!;
+  const version = (await registry.read.latestVersion!([a.guardAccount as Address]))!;
   if (version === 0n) {
     throw new Error(
       `no policy attached to guard ${a.guardAccount} on chain ${record.chainId} — ` +
         `rerun: cd contracts && forge script script/Deploy.s.sol --rpc-url <rpc> --broadcast`,
     );
   }
-  const p = (await registry.read.getPolicy([a.guardAccount as Address]))! as unknown as RawPolicy;
+  const p = (await registry.read.getPolicy!([a.guardAccount as Address]))! as unknown as RawPolicy;
   const policy: Policy = {
     version: Number(p.version),
     agent: p.agent,
@@ -234,12 +236,12 @@ export async function attachProtocol(
     sdkInstalled: p.sdkInstalled,
   };
   return {
-    usdc: handle(a.usdc as Address, USDC_MOCK.abi),
+    usdc: handle(a.usdc as Address, USDC_MOCK.abi) as Protocol["usdc"],
     registry,
     guard,
-    verdicts: handle(a.verdicts as Address, VERDICT_CONTRACT.abi),
-    pool: handle(a.mutualPool as Address, MUTUAL_POOL.abi),
-    blocklist: handle(a.blocklist as Address, BLOCKLIST.abi),
+    verdicts: handle(a.verdicts as Address, VERDICT_CONTRACT.abi) as Protocol["verdicts"],
+    pool: handle(a.mutualPool as Address, MUTUAL_POOL.abi) as Protocol["pool"],
+    blocklist: handle(a.blocklist as Address, BLOCKLIST.abi) as Protocol["blocklist"],
     policy,
   };
 }
