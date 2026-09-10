@@ -100,3 +100,15 @@ Registry addresses live in one TS module (`packages/sdk/src/erc8004/addresses.ts
   VerdictContract MUST add `emit HoldVerdictRouted(...)` after the
   releaseHold/freezeHold branch (VerdictContract.sol:366-372) plus a test, or the
   hold→feedback-only path stays dead code.
+
+## 10. Demo-only deployment centralization (logged 2026-09-10)
+
+- The deploy script (`contracts/script/Deploy.s.sol`) deliberately uses ONE
+  demo key (amara) as pool admin, USDC minter, GuardAccount owner AND policy
+  owner simultaneously. This matches the tested demo wiring
+  (`packages/demo/src/protocol.ts`) and is a **DEMO-ONLY simplification**.
+- A real deployment MUST separate these roles: a multisig for MutualPool
+  admin, a distinct per-agent policy owner (the payout claimant) rather than
+  one shared demo owner, and a dedicated ops key for wiring calls.
+- Same category of centralization question as the ERC-8004 ops-key decision
+  (§0); answered proactively here rather than left to a judge/reviewer.
