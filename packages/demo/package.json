@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@bulwark/engine": "workspace:*",
-    "@bulwark/agent-sdk": "workspace:*",
+    "@bulwark/api": "workspace:*",
     "viem": "^2.21.0",
     "@noble/curves": "^1.6.0"
   },

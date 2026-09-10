@@ -8,7 +8,9 @@
  * [2:20] The fraud kill: Nuno's own instruction → DENIED: OWNER-ORIGIN.
  * [2:40] The record: resolve atlas.bulwark.eth.
  *
- * Requires: anvil on http://localhost:8545 → `anvil`
+ * Requires a PRE-DEPLOYED stack: cd contracts && forge script script/Deploy.s.sol
+ * --rpc-url <rpc> --broadcast  (writes contracts/deployments/<chainId>.json).
+ * DEMO_RPC_URL selects the chain (default http://localhost:8545).
  * Run: cd packages/demo && bun run src/demo.ts
  */
 
@@ -16,8 +18,9 @@ import { formatUnits, parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import {
-  deployProtocol,
+  attachProtocol,
   clients,
+  RPC_URL,
   submitCoveredVerdict,
   submitHoldVerdict,
   ALICE,
@@ -26,18 +29,15 @@ import {
   ATTACKER,
   type Protocol,
 } from "./protocol.ts";
+import { loadDeployment } from "@bulwark/api/src/deployment.ts";
 import { Bulwark } from "@bulwark/agent-sdk";
 import { judgeBreach, judgeHold, type BehavioralFacts } from "@bulwark/engine";
 
 // Raw keys stay constants (viem accounts keep the key in closure);
 // the SDK needs the raw hex for session-key signing.
 const AMARA_PK = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
-const RAVI_PK = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
-const SENIOR_PK = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6";
 const NUNO_PK = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";
 const AMARA = privateKeyToAccount(AMARA_PK);
-const RAVI = privateKeyToAccount(RAVI_PK);
-const SENIOR = privateKeyToAccount(SENIOR_PK);
 const NUNO = privateKeyToAccount(NUNO_PK);
 
 /** Alice with the final nibble changed — edit distance 1 (Case 5's look-alike). */
@@ -45,10 +45,11 @@ const LOOKALIKE = "0x328809bc894f92807417d2dad6b7c998c1afdac1" as const;
 
 async function main(): Promise<void> {
   banner("BULWARK — deposit insurance for AI agents");
-  log("scene", "anvil local chain · http://localhost:8545");
+  log("scene", `anvil local chain · ${RPC_URL}`);
 
   const c = clients();
-  const p = await deployProtocol(c, { amara: AMARA, ravi: RAVI, senior: SENIOR });
+  const dep = await loadDeployment();
+  const p = await attachProtocol(c, dep);
 
   // -------- [0:00] The setup. --------
   banner("[0:00] THE SETUP — Atlas runs payroll for three DAOs");

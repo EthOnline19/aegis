@@ -26,9 +26,16 @@ import {
   VERDICT_ACCEPTED_EVENT,
   type OrchestratorConfig,
 } from "../src/erc8004-orchestrator.ts";
+import { loadDeployment } from "../src/deployment.ts";
 
 const RPC = process.env.ARC_RPC_URL ?? "http://localhost:8545";
-const VERDICT_ADDRESS = process.env.ARC_VERDICT_ADDRESS as `0x${string}` | undefined;
+const VERDICT_ADDRESS =
+  (process.env.ARC_VERDICT_ADDRESS as `0x${string}` | undefined) ??
+  // Fallback: read the address from the forge deployment record (no env needed
+  // once Deploy.s.sol has run for this chain).
+  (await loadDeployment(Number(process.env.ARC_TESTNET_CHAIN_ID) || undefined)
+    .then((d) => d.contracts.verdicts)
+    .catch(() => undefined));
 const OPS_PK = process.env.ARC_OPS_KEY;
 const WATCHER_PK = process.env.ARC_WATCHER_KEY;
 const REPUTATION_PK = process.env.ARC_REPUTATION_KEY;
@@ -36,10 +43,11 @@ const AGENT_ID = process.env.ARC_AGENT_ID ? BigInt(process.env.ARC_AGENT_ID) : u
 
 if (!VERDICT_ADDRESS || !OPS_PK || !WATCHER_PK || !REPUTATION_PK || AGENT_ID === undefined) {
   console.error(
-    "Set ARC_VERDICT_ADDRESS, ARC_AGENT_ID, ARC_OPS_KEY, ARC_WATCHER_KEY, " +
-      "ARC_REPUTATION_KEY (each funded — native USDC on Arc) to mirror live events.",
+    "Set ARC_AGENT_ID, ARC_OPS_KEY, ARC_WATCHER_KEY, ARC_REPUTATION_KEY " +
+      "(each funded — native USDC on Arc) to mirror live events. ARC_VERDICT_ADDRESS " +
+      "may be omitted — it falls back to contracts/deployments/<chainId>.json " +
+      "(that fallback also failed; run Deploy.s.sol or set the env var).",
   );
-  process.exit(2);
 }
 
 const ops = privateKeyToAccount(OPS_PK as `0x${string}`);

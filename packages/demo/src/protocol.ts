@@ -1,7 +1,12 @@
 /**
- * Protocol deployment + wiring for the demo (and any anvil session).
- * Deploys the five contracts + USDC mock, wires them, funds the pool,
- * attaches Atlas's policy — then hands back typed contract handles.
+ * Protocol access for the demo (and any anvil session).
+ * Two paths, one deploy path:
+ *  - deployProtocol: deploys the five contracts + USDC mock, wires them,
+ *    funds the pool, attaches Atlas's policy (the forge script mirrors this).
+ *  - attachProtocol: binds to a PRE-DEPLOYED stack from
+ *    contracts/deployments/<chainId>.json (Deploy.s.sol output) — address
+ *    consumption only, no redeploy.
+ * Both hand back typed contract handles.
  */
 
 import {
@@ -31,6 +36,7 @@ import BLOCKLIST from "../../../contracts/out/Blocklist.sol/Blocklist.json";
 import USDC_MOCK from "../../../contracts/out/USDCMock.sol/USDCMock.json";
 import type { Policy } from "@bulwark/engine";
 import { toOnChainPolicy } from "@bulwark/engine";
+import type { DeploymentRecord } from "@bulwark/api/src/deployment.ts";
 
 export const ALICE = "0x328809bc894f92807417d2dad6b7c998c1afdac6";
 export const BOB = "0x1d96f2f6bef1202e4ce1ff6dad0c2cb002861d3e";
@@ -70,11 +76,14 @@ export interface DeployAccounts {
   readonly senior: PrivateKeyAccount;
 }
 
+/** RPC endpoint; DEMO_RPC_URL lets the demo attach to any anvil instance. */
+export const RPC_URL = process.env.DEMO_RPC_URL ?? "http://localhost:8545";
+
 /** viem clients shared by the demo (anvil transport). */
 export function clients(): { public: PublicClient; amara: ReadWriteClient; agent: ReadWriteClient; watcher: ReadWriteClient } {
-  const pub = createPublicClient({ chain: anvil, transport: http() });
+  const pub = createPublicClient({ chain: anvil, transport: http(RPC_URL) });
   const rw = (account: PrivateKeyAccount): ReadWriteClient =>
-    createWalletClient({ account, chain: anvil, transport: http() }).extend(publicActions);
+    createWalletClient({ account, chain: anvil, transport: http(RPC_URL) }).extend(publicActions);
   return {
     public: pub,
     amara: rw(privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d")),
@@ -165,6 +174,72 @@ export async function deployProtocol(
     verdicts: handle(verdictsAddr, VERDICT_CONTRACT.abi),
     pool: handle(poolAddr, MUTUAL_POOL.abi),
     blocklist: handle(blocklistAddr, BLOCKLIST.abi),
+    policy,
+  };
+}
+
+/**
+ * Attach to a PRE-DEPLOYED stack (Deploy.s.sol → deployments/<chainId>.json).
+ * Reads the live on-chain policy (source of truth) back into the engine's
+ * Policy form — so attach and fresh-deploy produce identical demo inputs.
+ */
+export async function attachProtocol(
+  c: ReturnType<typeof clients>,
+  record: DeploymentRecord,
+): Promise<Protocol> {
+  const a = record.contracts;
+  const handle = <TAbi extends Abi>(address: Address, abi: TAbi): Contract<TAbi> =>
+    getContract({ address, abi, client: { public: c.public, wallet: c.amara } }) as Contract<TAbi>;
+  const registry = handle(a.policyRegistry as Address, POLICY_REGISTRY.abi);
+  const guard = handle(a.guardAccount as Address, GUARD_ACCOUNT.abi);
+
+  // viem's inference over forge artifact ABIs degenerates under this tsconfig
+  // (pre-existing; see deployProtocol) — pin the on-chain struct shape here.
+  type RawPolicy = {
+    version: bigint;
+    agent: Address;
+    owner: Address;
+    coverageCap: bigint;
+    deductibleBps: bigint;
+    perTxLimit: bigint;
+    dailyLimit: bigint;
+    velocityLimit: bigint;
+    allowlist: readonly { recipient: Address; cap: bigint }[];
+    curfewStart: bigint;
+    curfewEnd: bigint;
+    holdWindowSec: bigint;
+    sdkInstalled: boolean;
+  };
+  const version = (await registry.read.latestVersion([a.guardAccount as Address]))!;
+  if (version === 0n) {
+    throw new Error(
+      `no policy attached to guard ${a.guardAccount} on chain ${record.chainId} — ` +
+        `rerun: cd contracts && forge script script/Deploy.s.sol --rpc-url <rpc> --broadcast`,
+    );
+  }
+  const p = (await registry.read.getPolicy([a.guardAccount as Address]))! as unknown as RawPolicy;
+  const policy: Policy = {
+    version: Number(p.version),
+    agent: p.agent,
+    owner: p.owner,
+    coverageCap: p.coverageCap,
+    deductibleBps: Number(p.deductibleBps),
+    perTxLimit: p.perTxLimit,
+    dailyLimit: p.dailyLimit,
+    velocityLimit: Number(p.velocityLimit),
+    allowlist: p.allowlist.map((r) => ({ recipient: r.recipient, cap: r.cap })),
+    curfewStartMinute: Number(p.curfewStart),
+    curfewEndMinute: Number(p.curfewEnd),
+    holdWindowSec: Number(p.holdWindowSec),
+    sdkInstalled: p.sdkInstalled,
+  };
+  return {
+    usdc: handle(a.usdc as Address, USDC_MOCK.abi),
+    registry,
+    guard,
+    verdicts: handle(a.verdicts as Address, VERDICT_CONTRACT.abi),
+    pool: handle(a.mutualPool as Address, MUTUAL_POOL.abi),
+    blocklist: handle(a.blocklist as Address, BLOCKLIST.abi),
     policy,
   };
 }

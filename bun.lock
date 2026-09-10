@@ -34,7 +34,7 @@
       "name": "@bulwark/demo",
       "version": "0.1.0",
       "dependencies": {
-        "@bulwark/agent-sdk": "workspace:*",
+        "@bulwark/api": "workspace:*",
         "@bulwark/engine": "workspace:*",
         "@noble/curves": "^1.6.0",
         "viem": "^2.21.0",
