@@ -42,12 +42,17 @@ const REPUTATION_PK = process.env.ARC_REPUTATION_KEY;
 const AGENT_ID = process.env.ARC_AGENT_ID ? BigInt(process.env.ARC_AGENT_ID) : undefined;
 
 if (!VERDICT_ADDRESS || !OPS_PK || !WATCHER_PK || !REPUTATION_PK || AGENT_ID === undefined) {
-  console.error(
-    "Set ARC_AGENT_ID, ARC_OPS_KEY, ARC_WATCHER_KEY, ARC_REPUTATION_KEY " +
-      "(each funded — native USDC on Arc) to mirror live events. ARC_VERDICT_ADDRESS " +
-      "may be omitted — it falls back to contracts/deployments/<chainId>.json " +
-      "(that fallback also failed; run Deploy.s.sol or set the env var).",
-  );
+  const missing = [
+    OPS_PK ? undefined : "ARC_OPS_KEY",
+    WATCHER_PK ? undefined : "ARC_WATCHER_KEY",
+    REPUTATION_PK ? undefined : "ARC_REPUTATION_KEY",
+    AGENT_ID === undefined ? "ARC_AGENT_ID" : undefined,
+    VERDICT_ADDRESS
+      ? undefined
+      : "ARC_VERDICT_ADDRESS (or run Deploy.s.sol — falls back to contracts/deployments/<chainId>.json)",
+  ].filter(Boolean);
+  console.error(`Missing ${missing.join(", ")} (each funded — native USDC on Arc) to mirror live events.`);
+  process.exit(2);
 }
 
 const ops = privateKeyToAccount(OPS_PK as `0x${string}`);
