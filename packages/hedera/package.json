@@ -1,0 +1,31 @@
+{
+  "name": "@repayd/hedera",
+  "version": "0.1.0",
+  "description": "REPAYD x402-gated Coverage & Risk API on Hedera testnet — pay-per-call risk quotes, ERC-8004 verdict records, and agent résumés, settled through the Blocky402 facilitator.",
+  "type": "module",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "scripts": {
+    "test": "bun test",
+    "lint": "tsc --noEmit",
+    "service": "bun run src/server.ts",
+    "paid-request": "bun run scripts/paid-request.ts",
+    "schedule-premium": "bun run scripts/schedule-premium.ts"
+  },
+  "dependencies": {
+    "@bulwark/engine": "workspace:*",
+    "@bulwark/record": "workspace:*",
+    "@x402/core": "2.25.0",
+    "@x402/hedera": "2.25.0",
+    "@x402/express": "2.25.0",
+    "@x402/fetch": "2.25.0",
+    "express": "^4.21.2",
+    "@hiero-ledger/sdk": "^2.88.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "@types/express": "^4.17.21",
+    "typescript": "^5.5.0"
+  }
+}
