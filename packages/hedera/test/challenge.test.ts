@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from "bun:test";
+import { describe, expect, it } from "bun:test";
 
 /**
  * Challenge/response tests against the REAL @x402/express middleware stack:
