@@ -76,9 +76,10 @@ export const BLOCKS_PER_MONTH = 1_296_000;
 export type Provenance = "VERIFIED" | "COMPUTED";
 
 const DAY_MS = 86_400_000;
-const MS_PER_MONTH = 30 * DAY_MS;
 
-/** Round to 6 decimal places — the precision shared with USDC. */
+/** Round to 6 decimal places — dollar outputs only (USDC precision).
+ * Multiplier values stay exact so products are reproducible at full
+ * float precision. */
 function round6(x: number): number {
   return Math.round(x * 1e6) / 1e6;
 }
@@ -114,7 +115,7 @@ export function claimLoad(events: PricingEvent[], now: number): number {
   if (claims.length === 0) return 1;
   claims.sort((a, b) => a.at - b.at);
   const last = claims[claims.length - 1]!;
-  const mitigated = events.some((e) => e.kind === "mitigation" && e.at >= last!.at);
+  const mitigated = events.some((e) => e.kind === "mitigation" && e.at >= last.at);
   if (mitigated) return CLAIM_LOAD_MITIGATED;
   return claims.length >= 2 ? CLAIM_LOAD_REPEAT : CLAIM_LOAD_FIRST;
 }
@@ -122,28 +123,42 @@ export function claimLoad(events: PricingEvent[], now: number): number {
 /**
  * Clean streak (VERIFIED input): consecutive clean days ending at the
  * evaluation instant. A clean_day event marks a day the GuardAccount
- * executed with zero violations/attempts/claims. Any adverse event
- * (attempted_breach, covered_claim, denied_claim) ends the streak at
- * that day; the streak restarts from the next clean_day after it.
+ * ran with zero violations/attempts/claims.
+ *
+ * Documented semantics (pinned by §28 month 9 and §13's résumé, which
+ * both show a 180-day clean streak coexisting with a covered claim):
+ * a covered claim does NOT break the streak — the claim load (×3/×5/
+ * ×1.5) is its own punishment, and stacking a streak reset on top
+ * would double-bill the same event. Attempted breaches and denied
+ * claims ARE driving infractions: they reset the streak, which then
+ * resumes from the next clean_day (§28 months 6–8, "streak resumes").
+ * `recovered` and `mitigation` are remediation facts, not infractions.
+ * Note: gaps between clean_day events are not detected — the streak is
+ * elapsed clean time since the last infraction, which is exact for the
+ * subgraph's daily clean-day stream.
+ *
+ * Counting: ELAPSED whole days from the anchor (floor((now−anchor)/
+ * DAY), no +1). The anchor day itself is day 0; a streak of N requires
+ * N full clean days after it, matching §28's ramp (90 days → 0.70,
+ * 180 → 0.40).
  */
 export function cleanStreakDays(events: PricingEvent[], now: number): number {
-  // Last adverse event (recovered/mitigation do not break a clean run).
-  let lastAdverse = -Infinity;
+  let lastInfraction = -Infinity;
   for (const e of events) {
-    if (e.kind === "attempted_breach" || e.kind === "covered_claim" || e.kind === "denied_claim") {
-      if (e.at > lastAdverse) lastAdverse = e.at;
+    if (e.kind === "attempted_breach" || e.kind === "denied_claim") {
+      if (e.at > lastInfraction) lastInfraction = e.at;
     }
   }
-  // Earliest clean_day at/after the last adverse event anchors the run.
-  let anchor = -Infinity;
+  // Earliest clean_day at/after the last infraction anchors the run.
+  let anchor = Infinity;
   for (const e of events) {
-    if (e.kind === "clean_day" && e.at >= lastAdverse && e.at > anchor) anchor = e.at;
+    if (e.kind === "clean_day" && e.at >= lastInfraction && e.at < anchor) anchor = e.at;
   }
-  if (anchor === -Infinity) return 0;
-  // Streak counts whole elapsed clean days since the anchor.
-  return Math.max(0, Math.floor((now - anchor) / DAY_MS) + 1);
+  if (anchor === Infinity) return 0;
+  // Streak counts whole elapsed clean days since the anchor (no +1:
+  // the anchor day itself is day 0, not day 1).
+  return Math.max(0, Math.floor((now - anchor) / DAY_MS));
 }
-
 /**
  * Compute the premium. Deterministic: `now` = latest event timestamp.
  * Same policy + same events → same premium, forever, for anyone.
@@ -165,15 +180,15 @@ export function computePremium(policy: PricingPolicy, events: PricingEvent[]): P
   // VERIFIED input (subgraph clean-day counts) × COMPUTED interpolation.
   // Documented choice: linear ramp — discount = 60% × (days/180). A
   // linear telematics ramp matches the §28 progression (90 clean days →
-  // 0.60x, 180 → 0.40x) and is the simplest monotone interpolation
-  // through both pinned points.
+  // 0.70x streak factor, 180 → 0.40x) and is the simplest monotone
+  // interpolation through both pinned points.
   const streak = cleanStreakDays(events, now);
   const streakFrac = Math.min(streak, STREAK_DAYS_MAX) / STREAK_DAYS_MAX;
   const streakMul = 1 - MAX_STREAK_DISCOUNT * streakFrac;
   if (streak > 0) {
     multipliers.push({
       name: "streak_discount",
-      value: round6(streakMul),
+      value: streakMul,
       provenance: "COMPUTED",
       detail: `${streak} VERIFIED clean days (linear ramp to −60% at ${STREAK_DAYS_MAX}) → ×${round6(streakMul)}`,
     });
@@ -199,7 +214,7 @@ export function computePremium(policy: PricingPolicy, events: PricingEvent[]): P
     const mitigated = load === CLAIM_LOAD_MITIGATED;
     multipliers.push({
       name: "claim_load",
-      value: round6(load),
+      value: load,
       provenance: "COMPUTED",
       detail: mitigated
         ? `${claims.length} VERIFIED covered claim(s) in 180d, mitigation accepted → ×${CLAIM_LOAD_MITIGATED}`
@@ -212,7 +227,7 @@ export function computePremium(policy: PricingPolicy, events: PricingEvent[]): P
   if (anomaly > 0) {
     multipliers.push({
       name: "anomaly_load",
-      value: round6(1 + anomaly),
+      value: 1 + anomaly,
       provenance: "COMPUTED",
       detail: `near-miss density over 30d (attempted+denied) → +${round6(anomaly * 100)}%`,
     });
@@ -251,11 +266,11 @@ export function computePremium(policy: PricingPolicy, events: PricingEvent[]): P
   const product = multipliers.reduce((p, m) => p * m.value, 1);
   const baseMonthly = (policy.coverageCapUsd * baseRatePct) / 100;
   const monthlyPremiumUsd = round6(baseMonthly * product);
-  const perBlockPremiumUsd = round6((baseMonthly * product) / BLOCKS_PER_MONTH);
+  const perBlockPremiumUsd = monthlyPremiumUsd / BLOCKS_PER_MONTH;
   const formula =
     `premium = ${baseRatePct}%/mo × $${policy.coverageCapUsd} × ` +
     (multipliers.length > 0
-      ? multipliers.map((m) => `${m.name}(×${m.value})`).join(" ")
+      ? multipliers.map((m) => `${m.name}(×${round6(m.value)})`).join(" ")
       : "1") +
     ` = $${round6(baseMonthly)} × ${round6(product)} = $${monthlyPremiumUsd}/mo`;
 
