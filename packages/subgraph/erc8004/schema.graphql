@@ -1,0 +1,57 @@
+# ERC-8004 Standard Registries Subgraph (REPAYD / Arc testnet).
+# Indexes the canonical ERC-8004 registries — the standard schema every
+# ERC-8004 agent on Arc testnet, not just REPAYD-covered ones.
+
+# --------------------------------------------------------------- //
+#  Erc8004Agent — one per Registered agentId (the identity NFT)    //
+# --------------------------------------------------------------- //
+
+type Erc8004Agent @entity {
+  id: ID! # agentId (ERC-721 tokenId in the canonical registry)
+  owner: Bytes! # NFT owner (the admin authority)
+  agentURI: String! # off-chain registration file (EIP-8004 registration-v1)
+  wallet: Bytes! # current agentWallet (reserved metadata key; address(0) if unset)
+  registeredAt: BigInt!
+  lastActivityAt: BigInt!
+  feedbacks: [Erc8004Feedback!]! @derivedFrom(field: "agent")
+  validations: [Erc8004Validation!]! @derivedFrom(field: "agent")
+}
+
+# --------------------------------------------------------------- //
+#  Erc8004Feedback — one per NewFeedback (append-only reputation)  //
+# --------------------------------------------------------------- //
+
+type Erc8004Feedback @entity {
+  id: ID! # <agentId>-<clientAddress>-<feedbackIndex> (unique per spec)
+  agent: Erc8004Agent!
+  client: Bytes! # feedback submitter (transaction sender — the audit trail)
+  feedbackIndex: BigInt! # 1-indexed per (agentId, client)
+  value: BigInt! # int128; signed → normalize with valueDecimals
+  valueDecimals: Int! # 0..18
+  tag1: String!
+  tag2: String!
+  endpoint: String! # machine link (REPAYD: bulwark://verdicts/<digest>)
+  feedbackURI: String!
+  feedbackHash: Bytes!
+  isRevoked: Boolean! # set by FeedbackRevoked — never deleted (audit trail)
+  revokedAt: BigInt
+  blockTimestamp: BigInt!
+}
+
+# --------------------------------------------------------------- //
+#  Erc8004Validation — request/response pair (named-validator score) //
+# --------------------------------------------------------------- //
+
+type Erc8004Validation @entity {
+  id: ID! # requestHash
+  agent: Erc8004Agent!
+  validator: Bytes! # the only address allowed to respond
+  requestURI: String!
+  response: Int # null until the named validator answers; 0..100
+  responseURI: String!
+  responseHash: Bytes! # REPAYD: the verdict digest being mirrored
+  tag: String!
+  requestedAt: BigInt!
+  respondedAt: BigInt
+  blockTimestamp: BigInt!
+}

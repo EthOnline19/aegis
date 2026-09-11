@@ -1,0 +1,14 @@
+{
+  "name": "@repayd/subgraph-erc8004",
+  "version": "0.1.0",
+  "description": "REPAYD ERC-8004 Standard Registries Subgraph — the canonical identity/validation/reputation registries on Arc testnet, composable with the REPAYD Risk Subgraph.",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy": "graph deploy"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.71.0",
+    "@graphprotocol/graph-ts": "^0.35.1"
+  }
+}

@@ -1,0 +1,95 @@
+specVersion: 0.0.5
+description: "REPAYD ERC-8004 Standard Registries Subgraph — indexes the
+  canonical ERC-8004 identity, validation, and reputation registries on Arc
+  testnet. Any ERC-8004-conformant agent, not just REPAYD-covered ones.
+  Composes with the REPAYD Risk Subgraph: one query pattern joins verdicts
+  to their standard-registry mirrors."
+repository: https://github.com/EthOnline19/aegis
+schema:
+  file: ./schema.graphql
+dataSources:
+  # -------------------------------------------------------------- #
+  # IdentityRegistry — Registered / URIUpdated / MetadataSet
+  # (canonical events, EIP-8004)
+  # -------------------------------------------------------------- #
+  - kind: ethereum
+    name: Erc8004Identity
+    network: arc-testnet
+    source:
+      address: "0x8004A818BFB912233c491871b3d84c89A494BD9e"
+      abi: Erc8004Identity
+      # first block with code, binary-searched via eth_getCode
+      startBlock: 29241340
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/mapping.ts
+      entities:
+        - Erc8004Agent
+      abis:
+        - name: Erc8004Identity
+          file: ./abis/IdentityRegistry.json
+      eventHandlers:
+        - event: Registered(indexed uint256,string,indexed address)
+          handler: handleRegistered
+        - event: URIUpdated(indexed uint256,string,indexed address)
+          handler: handleUriUpdated
+        - event: MetadataSet(indexed uint256,indexed string,string,bytes)
+          handler: handleMetadataSet
+  # -------------------------------------------------------------- #
+  # ReputationRegistry — NewFeedback / FeedbackRevoked
+  # (canonical events, EIP-8004)
+  # -------------------------------------------------------------- #
+  - kind: ethereum
+    name: Erc8004Reputation
+    network: arc-testnet
+    source:
+      address: "0x8004B663056A597Dffe9eCcC1965A193B7388713"
+      abi: Erc8004Reputation
+      # first block with code, binary-searched via eth_getCode
+      startBlock: 29241344
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/mapping.ts
+      entities:
+        - Erc8004Agent
+        - Erc8004Feedback
+      abis:
+        - name: Erc8004Reputation
+          file: ./abis/ReputationRegistry.json
+      eventHandlers:
+        - event: NewFeedback(indexed uint256,indexed address,uint64,int128,uint8,indexed string,string,string,string,string,bytes32)
+          handler: handleNewFeedback
+        - event: FeedbackRevoked(indexed uint256,indexed address,indexed uint64)
+          handler: handleFeedbackRevoked
+  # -------------------------------------------------------------- #
+  # ValidationRegistry — ValidationRequest / ValidationResponse
+  # (canonical events, EIP-8004)
+  # -------------------------------------------------------------- #
+  - kind: ethereum
+    name: Erc8004Validation
+    network: arc-testnet
+    source:
+      address: "0x8004Cb1BF31DAf7788923b405b754f57acEB4272"
+      abi: Erc8004Validation
+      # first block with code, binary-searched via eth_getCode
+      startBlock: 29241349
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/mapping.ts
+      entities:
+        - Erc8004Agent
+        - Erc8004Validation
+      abis:
+        - name: Erc8004Validation
+          file: ./abis/ValidationRegistry.json
+      eventHandlers:
+        - event: ValidationRequest(indexed address,indexed uint256,string,indexed bytes32)
+          handler: handleValidationRequest
+        - event: ValidationResponse(indexed address,indexed uint256,indexed bytes32,uint8,string,bytes32,string)
+          handler: handleValidationResponse
