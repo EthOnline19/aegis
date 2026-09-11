@@ -11,8 +11,8 @@
 
 ## 0. Decisions locked with you
 
-1. **Off-chain orchestrator.** BULWARK contracts stay untouched. All ERC-8004 posts are separate transactions from three keys, triggered by `VerdictContract` events. Tamper-evidence lives in VerdictContract's own event ledger (append-only, EIP-712 domain-bound verdicts) — the ERC-8004 records are composable mirrors of it, cross-checkable via `requestURI`/`endpoint` links back to verdict digests.
-2. **BULWARK ops key owns every agentId NFT.** `setAgentWallet(agentId, guardAccount)` publicly binds the identity to the protected wallet; custody of the NFT confers no fund custody (GuardAccount remains owner-controlled). Self-registration + owner-granted operator is the documented v2 path.
+1. **Off-chain orchestrator.** REPAYD contracts stay untouched. All ERC-8004 posts are separate transactions from three keys, triggered by `VerdictContract` events. Tamper-evidence lives in VerdictContract's own event ledger (append-only, EIP-712 domain-bound verdicts) — the ERC-8004 records are composable mirrors of it, cross-checkable via `requestURI`/`endpoint` links back to verdict digests.
+2. **REPAYD ops key owns every agentId NFT.** `setAgentWallet(agentId, guardAccount)` publicly binds the identity to the protected wallet; custody of the NFT confers no fund custody (GuardAccount remains owner-controlled). Self-registration + owner-granted operator is the documented v2 path.
 
 ## 1. Agent identity mapping
 
@@ -24,7 +24,7 @@
 
 ## 2. Validation Registry = watcher verdicts
 
-- **The validator is the watcher key** (`VerdictContract.watcher()` — the TEE job key). `validationResponse` requires `msg.sender == validatorAddress` (the address named in the request), so only the watcher can ever answer a BULWARK request. No other party — not admin, not governance — can forge a response.
+- **The validator is the watcher key** (`VerdictContract.watcher()` — the TEE job key). `validationResponse` requires `msg.sender == validatorAddress` (the address named in the request), so only the watcher can ever answer a REPAYD request. No other party — not admin, not governance — can forge a response.
 - **Flow, per accepted verdict** (orchestrator listens to `VerdictAccepted(digest, agent, outcome, ...)`):
   1. Ops key: `validationRequest(validatorAddress=watcher, agentId, requestURI, requestHash)` — authorized because ops owns the agentId NFT.
   2. `requestHash = keccak256(abi.encode(agentId, guardAccount, txHash, digest, chainId))` — binds the 8004 request to the exact accepted verdict.
@@ -32,7 +32,7 @@
   4. Watcher key: `validationResponse(requestHash, score, responseURI, responseHash, tag)`.
   5. Consumer: `getValidationStatus(requestHash)` → checks `validatorAddress == watcher` → reads score. Or `getSummary(agentId, [watcher], tag)` for the aggregate. Consumers never parse our API; the registry is the interface.
 - **Writes are one-time.** `validationRequest` reverts on requestHash reuse ("exists"); `validationResponse` is first-answer-final (no update path). Orchestrator is idempotent: skip if `getValidationStatus(requestHash)` doesn't revert.
-- **Score mapping (0–100), authoritative:** the three signals BULWARK publishes (validation score, reputation value, internal pricing load) must rank event severity identically — fraud < claim-loss < attempt. Validation scores reflect *incident outcome quality* (how well the machine handled the event), which is why COVERED (containment worked, payout made) sits at 25 and not 0:
+- **Score mapping (0–100), authoritative:** the three signals REPAYD publishes (validation score, reputation value, internal pricing load) must rank event severity identically — fraud < claim-loss < attempt. Validation scores reflect *incident outcome quality* (how well the machine handled the event), which is why COVERED (containment worked, payout made) sits at 25 and not 0:
   - `COVERED` → **25** — agent was breached with real loss (bad) but containment + payout worked (not 0).
   - `ATTEMPTED` → **75** — attacked, defenses held, no loss (good).
   - `DENIED_OWNER_ORIGIN` → **0** — owner-signed breach; trust hit.
@@ -48,8 +48,8 @@
   - `DISMISSED` → never posted (same rule as §2).
 - **Aggregation semantics (verified against the reference implementation, `ReputationRegistryUpgradeable.getSummary`):** the registry's summary helper **averages** (sum of `value × 10^(18−decimals)` normalized to WAD, divided by count, rescaled to the mode decimals) — it does NOT sum. Consequences, handled explicitly:
   1. The v2 reasoning's "second claim → −50" composition holds **only under a summing consumer**. `getSummary`'s average would instead pull a lone −25 back toward neutral as clean entries accumulate around it — silently breaking repeat-offense escalation. The design therefore does NOT rely on the raw value average to convey repetition.
-  2. Repetition is conveyed by **count + tag2**, both first-class on-chain: `tag1 = "bulwark-verdict"` (indexed) filters to BULWARK's feedback; `tag2` = outcome string; `getSummary(agentId, [reputationKey], "bulwark-verdict", "")` returns `(count, avgValue)` — `count` of covered claims is the repetition signal, recoverable by any consumer in one call. Per-claim values remain individually readable via `readFeedback`/`readAllFeedback` (unaggregated).
-  3. **BULWARK's own display (dashboard / résumé / Coverage API) computes a SUM, not the registry default:** `reputationSum(agentId) = Σ readAllFeedback(...).values` over `tag1="bulwark-verdict"`, non-revoked. The sum is the "net trust mass" reading: one −25 event dents it by exactly 25, a second by another 25 (→ −50), +5 containment events push it back up, and a −100 fraud entry dominates. The registry average is surfaced alongside as the "per-event quality" reading. Both are documented in the API so no consumer mistakes one for the other.
+  2. Repetition is conveyed by **count + tag2**, both first-class on-chain: `tag1 = "bulwark-verdict"` (indexed) filters to REPAYD's feedback; `tag2` = outcome string; `getSummary(agentId, [reputationKey], "bulwark-verdict", "")` returns `(count, avgValue)` — `count` of covered claims is the repetition signal, recoverable by any consumer in one call. Per-claim values remain individually readable via `readFeedback`/`readAllFeedback` (unaggregated).
+  3. **REPAYD's own display (dashboard / résumé / Coverage API) computes a SUM, not the registry default:** `reputationSum(agentId) = Σ readAllFeedback(...).values` over `tag1="bulwark-verdict"`, non-revoked. The sum is the "net trust mass" reading: one −25 event dents it by exactly 25, a second by another 25 (→ −50), +5 containment events push it back up, and a −100 fraud entry dominates. The registry average is surfaced alongside as the "per-event quality" reading. Both are documented in the API so no consumer mistakes one for the other.
 - `tag2` values: `covered` / `attempted` / `denied-owner-origin`.
 - `endpoint = bulwark://verdicts/<digest>` — machine link back to the VerdictContract ledger.
 - Index mapping is receipt-derived: the orchestrator maps `digest → feedbackIndex` from its own tx receipt (the next per-client feedbackIndex is not front-run-deterministic). No lookup assumes an index before our tx confirms. `revokeFeedback` is reserved for a proven-wrong verdict (dispute overturn), matching `dispute()`/`requestRerun()`.
@@ -62,7 +62,7 @@ Three MIT interface files (SPDX header + provenance comment pointing at the upst
 - `IERC8004ValidationRegistry.sol` — `validationRequest`, `validationResponse`, `getValidationStatus`, `getSummary`, `getAgentValidations`, `getValidatorRequests`, `getIdentityRegistry`.
 - `IERC8004ReputationRegistry.sol` — `giveFeedback`, `revokeFeedback`, `appendResponse`, `readFeedback`, `readAllFeedback`, `getSummary`, `getIdentityRegistry`.
 
-Registry addresses live in one TS module (`packages/sdk/src/erc8004/addresses.ts`), Arc-first, keyed by chainId 5042002, with the mainnet pair noted for future use. No addresses are hardcoded in contracts — BULWARK contracts never reference ERC-8004 at all.
+Registry addresses live in one TS module (`packages/sdk/src/erc8004/addresses.ts`), Arc-first, keyed by chainId 5042002, with the mainnet pair noted for future use. No addresses are hardcoded in contracts — REPAYD contracts never reference ERC-8004 at all.
 
 ## 5. TS integration surface (new code, all under packages/)
 

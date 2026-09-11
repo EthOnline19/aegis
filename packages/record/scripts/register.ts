@@ -1,5 +1,5 @@
 /**
- * register.ts — write the BULWARK insurance résumé to ENSv2 (Sepolia beta).
+ * register.ts — write the REPAYD insurance résumé to ENSv2 (Sepolia beta).
  *
  * DEFAULT: DRY RUN. Prints the exact transactions it WOULD send — the
  * resolver-proxy deploy (with the résumé baked into its init setters),
@@ -11,11 +11,11 @@
  *   ENSV2_RPC_URL       — Sepolia RPC endpoint
  *
  * Usage:
- *   bun run scripts/register.ts [label]     # default label: bulwark
- *   bun run scripts/register.ts bulwark
+ *   bun run scripts/register.ts [label]     # default label: repayd
+ *   bun run scripts/register.ts repayd
  *
  * Label availability on ENSv2 Sepolia (research §1.5, verified read-only):
- * "atlas" is TAKEN; "bulwark" and "atlasbulwark" are free.
+ * "atlas" is TAKEN; "repayd" and "atlasrepayd" are free.
  */
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, http } from "viem";
@@ -49,7 +49,7 @@ const CHAIN_HEAD = `0x${"ab".repeat(32)}` as `0x${string}`;
 // ------------------------------------------------------------------ //
 
 async function main(): Promise<void> {
-  const label = process.argv[2] ?? "bulwark";
+  const label = process.argv[2] ?? "repayd";
   const gate = writerGate(process.env);
   const rpcUrl = process.env["ENSV2_RPC_URL"] ?? "https://ethereum-sepolia-rpc.publicnode.com";
 
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
   });
 
   console.log(`
-━━━ BULWARK · ENSv2 record writer ━━━
+━━━ REPAYD · ENSv2 record writer ━━━
   name:      ${plan.name}        (label "${label}")
   owner:     ${owner}
   registrar: ${ENSV2_ADDRESSES.ethRegistrar}

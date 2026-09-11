@@ -1,5 +1,5 @@
 /**
- * ABI descriptors for the exact ERC-8004 functions BULWARK calls.
+ * ABI descriptors for the exact ERC-8004 functions REPAYD calls.
  *
  * The canonical deployments (see addresses.ts) are the reference v2.0.0
  * registries; these fragment ABIs match the interfaces copied into

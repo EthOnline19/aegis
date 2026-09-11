@@ -1,6 +1,6 @@
-# BULWARK Risk Subgraph (§13)
+# REPAYD Risk Subgraph (§13)
 
-The public memory of the BULWARK protocol on **Arc testnet (chainId 5042002)**: every policy, tier decision, hold, verdict, claim, strike, and pool flow across all six fresh-stack contracts. A **public good** — the verdict pipeline and the pricing engine (§36) both consume this subgraph instead of running their own indexers.
+The public memory of the REPAYD protocol on **Arc testnet (chainId 5042002)**: every policy, tier decision, hold, verdict, claim, strike, and pool flow across all six fresh-stack contracts. A **public good** — the verdict pipeline and the pricing engine (§36) both consume this subgraph instead of running their own indexers.
 
 ## What it indexes
 
@@ -47,7 +47,7 @@ Arc testnet (`eip155:5042002`, network identifier **`arc-testnet`**) is on The G
 
 ```bash
 # 1. Create the subgraph at https://thegraph.com/studio (connect a wallet,
-#    Title Case name, e.g. "Bulwark Risk Arc Testnet") — grab the deploy key.
+#    Title Case name, e.g. "Repayd Risk Arc Testnet") — grab the deploy key.
 # 2. Install the pinned CLI (verified on npm):
 npm install -g @graphprotocol/graph-cli@0.98.1
 # 3. Auth:

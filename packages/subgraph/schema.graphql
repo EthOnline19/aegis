@@ -1,4 +1,4 @@
-# BULWARK Risk Subgraph — schema.
+# REPAYD Risk Subgraph — schema.
 # The public memory of the protocol: every policy, tier decision, hold,
 # verdict, claim, strike, and pool flow across all covered agents.
 

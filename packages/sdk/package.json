@@ -1,7 +1,7 @@
 {
   "name": "@bulwark/agent-sdk",
   "version": "0.1.0",
-  "description": "BULWARK Agent SDK — instruction hash-chain, session-key signing, TEE co-signing. The alibi data source.",
+  "description": "REPAYD Agent SDK — instruction hash-chain, session-key signing, TEE co-signing. The alibi data source.",
   "type": "module",
   "main": "src/index.ts",
   "module": "src/index.ts",

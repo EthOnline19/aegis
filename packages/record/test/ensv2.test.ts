@@ -26,7 +26,7 @@ const DEMO: ResumeInput = {
 
 describe("buildRegistrationPlan", () => {
   const plan = buildRegistrationPlan({
-    label: "bulwark",
+    label: "repayd",
     owner: OWNER,
     secret: SECRET,
     resume: buildResume(DEMO),
@@ -34,7 +34,7 @@ describe("buildRegistrationPlan", () => {
   });
 
   it("plans a 4-tx flow: deployProxy → approve → commit → register", () => {
-    expect(plan.name).toBe("bulwark.eth");
+    expect(plan.name).toBe("repayd.eth");
     expect(plan.resolverDeploy.to).toBe(ENSV2_ADDRESSES.verifiableFactory);
     expect(plan.approve.spender).toBe(ENSV2_ADDRESSES.ethRegistrar);
     expect(plan.commit.to).toBe(ENSV2_ADDRESSES.ethRegistrar);
@@ -53,7 +53,7 @@ describe("buildRegistrationPlan", () => {
 
   it("binds all 7 params in the commitment (anti-frontrun)", () => {
     const again = makeCommitment({
-      label: "bulwark",
+      label: "repayd",
       owner: OWNER,
       secret: SECRET,
       subregistry: `0x${"00".repeat(20)}`,
@@ -64,7 +64,7 @@ describe("buildRegistrationPlan", () => {
     expect(plan.commit.commitment).toBe(again);
     // different label → different commitment
     const other = makeCommitment({
-      label: "atlasbulwark",
+      label: "atlasrepayd",
       owner: OWNER,
       secret: SECRET,
       subregistry: `0x${"00".repeat(20)}`,
@@ -113,16 +113,16 @@ describe("renderForChain", () => {
 });
 
 describe("dnsEncodeForTest", () => {
-  it("encodes bulwark.eth as wire-format DNS labels", () => {
-    const bytes = dnsEncodeForTest("bulwark.eth");
+  it("encodes repayd.eth as wire-format DNS labels", () => {
+    const bytes = dnsEncodeForTest("repayd.eth");
     expect(Array.from(bytes)).toEqual([
-      7, ...[...bulwarkBytes()], 3, ...[...ethBytes()], 0,
+      6, ...[...repaydBytes()], 3, ...[...ethBytes()], 0,
     ]);
   });
 });
 
-function bulwarkBytes(): Uint8Array {
-  return new TextEncoder().encode("bulwark");
+function repaydBytes(): Uint8Array {
+  return new TextEncoder().encode("repayd");
 }
 function ethBytes(): Uint8Array {
   return new TextEncoder().encode("eth");

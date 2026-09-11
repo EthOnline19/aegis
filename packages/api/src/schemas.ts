@@ -1,5 +1,5 @@
 /**
- * BULWARK Coverage API — request/response schemas.
+ * REPAYD Coverage API — request/response schemas.
  *
  * External input enters here and nowhere else: every request body is
  * parsed through these validators before it touches the store.

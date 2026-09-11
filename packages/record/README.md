@@ -1,6 +1,6 @@
-# @bulwark/record — the ENSv2 insurance résumé
+# @repayd/record — the ENSv2 insurance résumé
 
-> `resolve bulwark.eth` → the agent's full public insurance résumé.
+> `resolve repayd.eth` → the agent's full public insurance résumé.
 > Any marketplace, any employer, any other agent — **one lookup prices trust in the machine.**
 > (Master plan §13, §35.)
 
@@ -23,7 +23,7 @@ Nothing is ever INFERRED.
   résumé object; `renderResume` (terminal block), `toEnsTextRecords` /
   `fromEnsTextRecords` (round-trip through `com.bulwark.*` text keys).
   Deterministic: no network, no clock, no randomness.
-- `src/pricing.ts` — the `@bulwark/pricing` shared contract:
+- `src/pricing.ts` — the `@repayd/pricing` shared contract:
   `computePremium(policy, events)` types, runtime engine load, and the §12
   formula invariant (`base_rate × coverage_cap × product(multipliers)`).
 - `src/ensv2.ts` — the ENSv2 Sepolia writer/resolver (see below).
@@ -55,10 +55,10 @@ UniversalResolverProxy; the inner `text()` return is ABI-decoded.
 
 ```bash
 # Dry run (default): prints the exact 4-tx plan + text records. Zero writes.
-bun run scripts/register.ts bulwark
+bun run scripts/register.ts repayd
 
 # Read the résumé back (read-only, no env keys needed).
-bun run scripts/resolve.ts bulwark.eth
+bun run scripts/resolve.ts repayd.eth
 
 # Tests
 bun test packages/record
@@ -79,7 +79,7 @@ write if the label is taken or the balance is short.
 
 ## §36 — the ENSv2 track story (first movers)
 
-EN Sv2 at ETHOnline 2026: **$5k — Best Use of ENSv2.** The pitch: BULWARK
+EN Sv2 at ETHOnline 2026: **$5k — Best Use of ENSv2.** The pitch: REPAYD
 puts **insurance résumés + hash-chain heads on the brand-new ENSv2
 registry — first movers** (zero of the 2,511 hackathon winners surveyed
 have built on ENSv2). The record is the trust primitive of the agent
@@ -93,7 +93,7 @@ tamper-evident — any edit breaks the chain visibly.
 |---|---|
 | **Sepolia ETH** for gas | 4 txs (deployProxy, approve, commit, register). Faucets: Google Cloud / Alchemy Sepolia faucet, ENS Discord `#faucet`. |
 | **MockUSDC** payment token | `0x768f42455a2d082e23ceef7d51e5787c82d67a39` — ENS-team-deployed. ~8 tokens for 1yr of a 5+char label. **Mint path unverified** — check the contract for a public `mint()`; if gated, ask in ENS Discord. |
-| Label availability | `atlas` is TAKEN on ENSv2 Sepolia; `bulwark` and `atlasbulwark` are free (verified read-only). Subnames like `atlas.bulwark.eth` inherit the parent resolver (wildcard resolution). |
+| Label availability | `atlas` is TAKEN on ENSv2 Sepolia; label availability for `repayd` to be re-verified post-rename. Subnames like `atlas.repayd.eth` inherit the parent resolver (wildcard resolution). |
 
 Until those are funded, `register.ts` stays a dry run — which is the
 default and the safe state.

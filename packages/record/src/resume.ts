@@ -1,7 +1,7 @@
 /**
- * BULWARK Résumé — the ENSv2 insurance résumé (master plan §13/§35).
+ * REPAYD Résumé — the ENSv2 insurance résumé (master plan §13/§35).
  *
- * One lookup — `resolve atlas.bulwark.eth` — prices trust in the machine:
+ * One lookup — `resolve atlas.repayd.eth` — prices trust in the machine:
  *
  * ```
  * INSURED:     yes · policy v4 · cap $2,500 · pool healthy

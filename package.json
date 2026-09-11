@@ -2,7 +2,7 @@
   "name": "aegis",
   "private": true,
   "version": "0.1.0",
-  "description": "BULWARK \u2014 deposit insurance for AI agents. The seatbelt, the airbag, the black box, and the fleet contract.",
+  "description": "REPAYD — deposit insurance for AI agents. The seatbelt, the airbag, the black box, and the fleet contract.",
   "workspaces": [
     "packages/*"
   ],
@@ -17,8 +17,9 @@
     "subgraph:build": "cd packages/subgraph && bunx graph codegen && bunx graph build"
   },
   "devDependencies": {
+    "@circle-fin/developer-controlled-wallets": "^10.8.0",
+    "@types/bun": "^1.1.0",
     "typescript": "^5.5.0",
-    "vitest": "^2.0.0",
-    "@types/bun": "^1.1.0"
+    "vitest": "^2.0.0"
   }
 }

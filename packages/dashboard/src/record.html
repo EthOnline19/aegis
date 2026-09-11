@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BULWARK — Public Record</title>
+<title>REPAYD — Public Record</title>
 <style>
   :root { --bg:#0b0e14; --panel:#12161f; --line:#1f2633; --ink:#e8edf5; --dim:#8b95a7; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --brand:#5b8cff; }
   * { box-sizing:border-box; margin:0; }
@@ -30,7 +30,7 @@
 </head>
 <body>
 <header>
-  <h1><b>BULWARK</b> · Public Record</h1>
+  <h1><b>REPAYD</b> · Public Record</h1>
   <nav>
     <a href="/">Owner</a>
     <a href="/capital">Capital</a>
@@ -39,7 +39,7 @@
 </header>
 
 <div class="lookup">
-  <input id="name" value="atlas.bulwark.eth" spellcheck="false" />
+  <input id="name" value="atlas.repayd.eth" spellcheck="false" />
   <button onclick="resolve()">resolve</button>
 </div>
 
@@ -48,11 +48,11 @@
 <p class="note">Any marketplace, hiring protocol, or other agent can price trust in this machine with one lookup.
 The record resolves from EN Sv2: policy hash, instruction hash-chain head, claim history.</p>
 
-<footer>BULWARK — the actuarial layer of the machine economy · this surface queries the Risk Subgraph</footer>
+<footer>REPAYD — the actuarial layer of the machine economy · this surface queries the Risk Subgraph</footer>
 
 <script>
   const RECORDS = {
-    "atlas.bulwark.eth": {
+    "atlas.repayd.eth": {
       INSURED: '<span class="pill ok">yes</span> policy v1 · cap $2,500 · pool healthy',
       DRIVING: '<span class="pill ok">94/100</span> 179-day clean streak · premium 0.72×',
       CLAIMS: [
@@ -64,7 +64,7 @@ The record resolves from EN Sv2: policy hash, instruction hash-chain head, claim
       POOL: 'junior $19,865 · senior $25,000 · solvent',
       STATUS: 'ACTIVE since 2026-06',
     },
-    "vex.bulwark.eth": {
+    "vex.repayd.eth": {
       INSURED: '<span class="pill bad">scarred</span> policy v1 · cap $2,500',
       DRIVING: '<span class="pill bad">12/100</span> 2-day streak · premium 5.00×',
       CLAIMS: [
@@ -75,7 +75,7 @@ The record resolves from EN Sv2: policy hash, instruction hash-chain head, claim
       POOL: '—',
       STATUS: 'DECLINED for renewal',
     },
-    "trux.bulwark.eth": {
+    "trux.repayd.eth": {
       INSURED: '<span class="pill ok">yes</span> policy v1 · cap $1,200',
       DRIVING: '<span class="pill ok">88/100</span> 41-day clean streak · premium 0.81×',
       CLAIMS: [
@@ -92,7 +92,7 @@ The record resolves from EN Sv2: policy hash, instruction hash-chain head, claim
     const r = RECORDS[name];
     const el = document.getElementById("record");
     if (!r) {
-      el.innerHTML = `<div class="line"><b>resolve</b>${name} → not found (no BULWARK record)</div>`;
+      el.innerHTML = `<div class="line"><b>resolve</b>${name} → not found (no REPAYD record)</div>`;
       return;
     }
     let html = "";
@@ -110,7 +110,7 @@ The record resolves from EN Sv2: policy hash, instruction hash-chain head, claim
     render(document.getElementById("name").value.trim().toLowerCase());
   }
 
-  render("atlas.bulwark.eth");
+  render("atlas.repayd.eth");
 </script>
 </body>
 </html>

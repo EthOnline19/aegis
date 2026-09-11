@@ -77,7 +77,7 @@ describe("coverage store (the business)", () => {
     const store = new CoverageStore();
     const res = store.create(parseCoverageRequest(VALID), NOW);
     expect(res.policyId).toMatch(/^bwk_/);
-    expect(res.record).toBe("boa-host-7.bulwark.eth");
+    expect(res.record).toBe("boa-host-7.repayd.eth");
     // New agent, KYA + SDK discounts: 0.72x.
     expect(res.multiplier).toBeCloseTo(0.72, 5);
     expect(res.monthlyPremium).toBeGreaterThan(0n);

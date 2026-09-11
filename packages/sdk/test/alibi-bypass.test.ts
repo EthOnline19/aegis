@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { Bulwark } from "../src/index.ts";
+import { Repayd } from "../src/index.ts";
 
 // A fixed dev session key (never use real keys in tests).
 const SESSION_KEY = `0x${"aa".repeat(32)}` as `0x${string}`;
@@ -13,8 +13,8 @@ function tmpStorePath(): string {
 }
 
 /** Fresh SDK against a temp persistence file (persistence is now mandatory). */
-function sdk(storePath: string = tmpStorePath(), agentName = "atlas.bulwark.eth"): Bulwark {
-  return new Bulwark({ agentName, sessionKey: SESSION_KEY, storePath });
+function sdk(storePath: string = tmpStorePath(), agentName = "atlas.repayd.eth"): Repayd {
+  return new Repayd({ agentName, sessionKey: SESSION_KEY, storePath });
 }
 
 afterEach(() => {

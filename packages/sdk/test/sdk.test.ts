@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { Bulwark, computeEntryDigest } from "../src/index.ts";
+import { Repayd, computeEntryDigest } from "../src/index.ts";
 
 // A fixed dev session key (never use real keys in tests).
 const SESSION_KEY = `0x${"aa".repeat(32)}` as `0x${string}`;
 
-async function newSdk(agentName = "atlas.bulwark.eth") {
-  return new Bulwark({ agentName, sessionKey: SESSION_KEY });
+async function newSdk(agentName = "atlas.repayd.eth") {
+  return new Repayd({ agentName, sessionKey: SESSION_KEY });
 }
 
 describe("instruction hash-chain (the alibi)", () => {

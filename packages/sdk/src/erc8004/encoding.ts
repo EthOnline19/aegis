@@ -5,7 +5,7 @@
  * validation request to the exact accepted verdict (agentId, guardAccount,
  * txHash, digest, chainId); `toFeedbackInt128`/`fromFeedbackInt128` move
  * between the design's decimal (−25.00) and the registry's int128;
- * `reputationSum` is BULWARK's SUM-based résumé reading (design §3.3) —
+ * `reputationSum` is REPAYD's SUM-based résumé reading (design §3.3) —
  * deliberately NOT the registry's `getSummary` average.
  *
  * Everything here is synchronous and side-effect free, so the forge-test
@@ -56,7 +56,7 @@ export function fromFeedbackInt128(raw: bigint): bigint {
 }
 
 /**
- * BULWARK's SUM-based reputation reading (design §3.3):
+ * REPAYD's SUM-based reputation reading (design §3.3):
  * `Σ values` over matching, non-revoked entries — the net trust mass.
  * Distinct from the registry's `getSummary` AVERAGE; both are surfaced
  * so no consumer mistakes one for the other.

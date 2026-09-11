@@ -1,5 +1,5 @@
 /**
- * BULWARK Agent SDK — the alibi.
+ * REPAYD Agent SDK — the alibi.
  *
  * Wraps the agent's instruction loop. Every instruction the agent receives —
  * from the owner's console, from a job, from a web page — is hashed and
@@ -42,8 +42,8 @@ export interface ChainEntry {
   readonly signature?: `0x${string}`;
 }
 
-export interface BulwarkConfig {
-  /** The agent's ENSv2 name, e.g. "atlas.bulwark.eth". */
+export interface RepaydConfig {
+  /** The agent's ENSv2 name, e.g. "atlas.repayd.eth". */
   readonly agentName: string;
   /** Owner session private key (32 bytes hex) — bound to the World-ID login. */
   readonly sessionKey: `0x${string}`;
@@ -59,14 +59,14 @@ export interface BulwarkConfig {
   readonly storePath?: string;
 }
 
-export class Bulwark {
-  private readonly config: BulwarkConfig;
+export class Repayd {
+  private readonly config: RepaydConfig;
   private readonly sessionKeyBytes: Uint8Array;
   private readonly sessionPubkeyBytes: Uint8Array;
   private chain: ChainEntry[] = [];
   private readonly store: JsonChainStore;
 
-  constructor(config: BulwarkConfig) {
+  constructor(config: RepaydConfig) {
     this.config = config;
     // Normalize once: accept 0x-prefixed or bare hex, 64 chars.
     const keyHex = config.sessionKey.replace(/^0x/i, "");

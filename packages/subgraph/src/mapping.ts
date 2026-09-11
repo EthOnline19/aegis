@@ -1,4 +1,4 @@
-// BULWARK Risk Subgraph — mappings.
+// REPAYD Risk Subgraph — mappings.
 // Every handler is a pure event→entity projection. No logic, no judgment:
 // the subgraph is a read replica, not a referee.
 //

@@ -1,7 +1,7 @@
 {
   "name": "@bulwark/subgraph",
   "version": "0.1.0",
-  "description": "BULWARK Risk Subgraph — every policy-second, tier decision, verdict, claim, and blocklist entry. A public good.",
+  "description": "REPAYD Risk Subgraph — every policy-second, tier decision, verdict, claim, and blocklist entry. A public good.",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",

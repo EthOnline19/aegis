@@ -1,5 +1,5 @@
 specVersion: 0.0.5
-description: BULWARK Risk Subgraph — every policy, tier decision, hold,
+description: REPAYD Risk Subgraph — every policy, tier decision, hold,
   verdict, claim, strike, and pool flow across all covered agents. A public good.
 repository: https://github.com/EthOnline19/aegis
 schema:

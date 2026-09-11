@@ -9,7 +9,7 @@ import {
 } from "../src/resume.ts";
 
 /**
- * The §35 demo record — what atlas.bulwark.eth resolves to after the
+ * The §35 demo record — what atlas.repayd.eth resolves to after the
  * Step-4 run: 179 clean days, 0.72x premium multiplier, 1 covered claim
  * ($135, same-block payout), 1 attempted breach (frozen hold, no loss).
  */

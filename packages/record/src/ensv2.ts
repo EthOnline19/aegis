@@ -1,5 +1,5 @@
 /**
- * BULWARK ENSv2 writer/resolver — the insurance résumé on ENSv2 (Sepolia beta).
+ * REPAYD ENSv2 writer/resolver — the insurance résumé on ENSv2 (Sepolia beta).
  *
  * Flow (verified by the track research doc, §1.3–1.5 of
  * local://ens-graph-research.md — every address read from
@@ -110,7 +110,7 @@ export const ALL_ROLES =
 /** The registration plan — what register.ts prints (dry run) or sends. */
 export interface RegistrationPlan {
   readonly label: string;
-  readonly name: string; // e.g. "bulwark.eth"
+  readonly name: string; // e.g. "repayd.eth"
   readonly owner: Address;
   readonly resolver: Address; // the deployed (or to-be-deployed) proxy
   readonly resolverDeploy: {

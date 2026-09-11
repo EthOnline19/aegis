@@ -9,7 +9,7 @@
  */
 import type { VerdictOutcome } from "./types.ts";
 
-/** tag1 on every feedback entry BULWARK posts (indexed on-chain). */
+/** tag1 on every feedback entry REPAYD posts (indexed on-chain). */
 export const TAG1 = "bulwark-verdict" as const;
 
 /** valueDecimals for every feedback entry (int128, |value| ≤ 1e38). */

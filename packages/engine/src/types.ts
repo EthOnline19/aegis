@@ -1,5 +1,5 @@
 /**
- * BULWARK shared types — the TypeScript mirror of contracts/src/BulwarkTypes.sol.
+  * REPAYD shared types — the TypeScript mirror of contracts/src/BulwarkTypes.sol.
  *
  * "The AI narrates, the code decides": every structure here is deterministic.
  * The LLM may produce `detail` narrative text; it can never influence a tier,

@@ -1,5 +1,5 @@
 /**
- * BULWARK Engine — public entrypoint.
+ * REPAYD Engine — public entrypoint.
  * The Watcher & Verdict Engine + Pricing Engine, deterministic end to end.
  */
 

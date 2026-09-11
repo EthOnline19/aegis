@@ -2,7 +2,7 @@
  * Step 4 smoke test (design §7.2): one full ERC-8004 round-trip against
  * the LIVE canonical Arc testnet registries — register → bind guard
  * wallet → validationRequest → validationResponse → giveFeedback —
- * fork-free (public RPC), using three fresh BULWARK-role keys.
+ * fork-free (public RPC), using three fresh REPAYD-role keys.
  *
  * Run: bun run packages/api/scripts/arc-smoke.ts
  *

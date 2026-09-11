@@ -22,7 +22,7 @@ import type { StoredPolicy } from "./store.ts";
 
 const store = new CoverageStore();
 
-const PORT = Number(process.env.BULWARK_API_PORT ?? 8787);
+const PORT = Number(process.env.REPAYD_API_PORT ?? 8787);
 
 /** JSON response; bigint values serialize as strings. */
 function json(status: number, body: unknown): Response {
@@ -208,4 +208,4 @@ function serializePolicy(p: StoredPolicy): Record<string, unknown> {
   };
 }
 
-console.log(`BULWARK Coverage API listening on :${server.port}`);
+console.log(`REPAYD Coverage API listening on :${server.port}`);

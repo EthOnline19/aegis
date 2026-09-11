@@ -1,9 +1,9 @@
 /**
- * resolve.ts — read the BULWARK insurance résumé back from ENSv2.
+ * resolve.ts — read the REPAYD insurance résumé back from ENSv2.
  *
  * One lookup prices trust in the machine (plan §13/§35):
  *
- *   bun run scripts/resolve.ts [name]     # default: bulwark.eth
+ *   bun run scripts/resolve.ts [name]     # default: repayd.eth
  *
  * Read-only: no env keys, no writes. Resolves via the ENSv2
  * UniversalResolverProxy and prints every com.bulwark.* text record with
@@ -17,7 +17,7 @@ import { fromEnsTextRecords, parseEnsTextValue, ENS_TEXT_KEY, FIELD_LABEL, FIELD
 const DEFAULT_RPC = "https://ethereum-sepolia-rpc.publicnode.com";
 
 async function main(): Promise<void> {
-  const name = process.argv[2] ?? "bulwark.eth";
+  const name = process.argv[2] ?? "repayd.eth";
   const rpcUrl = process.env["ENSV2_RPC_URL"] ?? DEFAULT_RPC;
   const client = createEnsv2PublicClient(rpcUrl);
 
@@ -60,7 +60,7 @@ async function main(): Promise<void> {
   const missing = FIELD_ORDER.filter((k) => fields[k] === undefined);
   if (missing.length === FIELD_ORDER.length) {
     console.log(`
-  ⚠ Could not resolve any BULWARK records for "${name}".
+  ⚠ Could not resolve any REPAYD records for "${name}".
     Most likely: the name is not registered yet on ENSv2 Sepolia
     (run scripts/register.ts — dry-run by default), or the resolver
     proxy has no com.bulwark.* text records.`);

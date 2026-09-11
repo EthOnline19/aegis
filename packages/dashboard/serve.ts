@@ -1,5 +1,5 @@
 /**
- * Dashboard server — serves the three BULWARK surfaces and their JSON feeds.
+ * Dashboard server — serves the three REPAYD surfaces and their JSON feeds.
  * The feeds proxy the Coverage API + demo protocol state; in production the
  * same shapes come from the Risk Subgraph.
  */
@@ -7,8 +7,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const PORT = Number(process.env.BULWARK_DASH_PORT ?? 3000);
-const API = process.env.BULWARK_API_URL ?? "http://localhost:8787";
+const PORT = Number(process.env.REPAYD_DASH_PORT ?? 3000);
+const API = process.env.REPAYD_API_URL ?? "http://localhost:8787";
 
 const server = Bun.serve({
   port: PORT,
@@ -28,7 +28,7 @@ const server = Bun.serve({
 
     // -------- JSON feeds (proxy the Coverage API where applicable). -------- //
     if (req.method === "GET" && path === "/api/health") {
-      return json(200, { ok: true, service: "bulwark-dashboard" });
+      return json(200, { ok: true, service: "repayd-dashboard" });
     }
     if (req.method === "GET" && path.startsWith("/api/platforms/")) {
       const name = path.split("/").pop() ?? "";
@@ -68,4 +68,4 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-console.log(`BULWARK dashboards on :${server.port} — / (owner) · /capital · /record`);
+console.log(`REPAYD dashboards on :${server.port} — / (owner) · /capital · /record`);

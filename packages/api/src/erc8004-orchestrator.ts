@@ -107,7 +107,7 @@ export interface OrchestrationPlan {
 }
 
 export interface OrchestratorConfig {
-  /** The agentId NFTs' owner (BULWARK ops). */
+  /** The agentId NFTs' owner (REPAYD ops). */
   readonly opsKey: Account;
   /** VerdictContract's watcher — the only allowed responder. */
   readonly watcherKey: Account;

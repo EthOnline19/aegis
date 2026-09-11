@@ -1,5 +1,5 @@
 /**
- * BULWARK Step 4 — the full two-gasp demo on Arc testnet, COLLECTED.
+  * REPAYD Step 4 — the full two-gasp demo on Arc testnet, COLLECTED.
  *
  * One process, ONE SHOT (the fresh stack's daily budget + hold #1 are
  * consumed here — never re-run against the same stack):

@@ -1,7 +1,7 @@
 {
   "name": "@bulwark/record",
   "version": "0.1.0",
-  "description": "BULWARK ENSv2 Record — the agent's public insurance résumé. One lookup prices trust in the machine.",
+  "description": "REPAYD ENSv2 Record — the agent's public insurance résumé. One lookup prices trust in the machine.",
   "type": "module",
   "main": "src/index.ts",
   "module": "src/index.ts",

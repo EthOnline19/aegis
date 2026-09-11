@@ -1,5 +1,5 @@
 /**
- * BULWARK Watcher & Verdict Engine — the sealed referee's deterministic core.
+ * REPAYD Watcher & Verdict Engine — the sealed referee's deterministic core.
  *
  * Design law (plan §9): the AI narrates, the code decides. Every tier,
  * outcome, and payout below is plain arithmetic on VERIFIED facts. An LLM

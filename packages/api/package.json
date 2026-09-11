@@ -1,7 +1,7 @@
 {
   "name": "@bulwark/api",
   "version": "0.1.0",
-  "description": "BULWARK Coverage API — embedded insurance for agent platforms. POST /v1/coverage.",
+  "description": "REPAYD Coverage API — embedded insurance for agent platforms. POST /v1/coverage.",
   "type": "module",
   "main": "src/server.ts",
   "scripts": {

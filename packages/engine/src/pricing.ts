@@ -1,5 +1,5 @@
 /**
- * BULWARK Pricing Engine v1 — telematics for machines.
+ * REPAYD Pricing Engine v1 — telematics for machines.
  *
  * The deterministic, public formula (plan §12). Every number is labeled
  * COMPUTED; every input comes from the Risk Subgraph (VERIFIED events).

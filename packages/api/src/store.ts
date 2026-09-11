@@ -1,9 +1,9 @@
 /**
- * BULWARK Coverage API — in-memory policy store.
+ * REPAYD Coverage API — in-memory policy store.
  *
  * The Coverage API is the business (plan §14): platforms POST /v1/coverage
  * at agent creation; every Boa agent is born with a GuardAccount, the SDK
- * pre-installed, and name.platform.bulwark.eth records. Rev-share is
+ * pre-installed, and name.platform.repayd.eth records. Rev-share is
  * tracked per platform for settlement.
  */
 
@@ -55,7 +55,7 @@ export class CoverageStore {
     const q = quote(record, req.policy.cap);
 
     const policyId = `bwk_${(++this.counter).toString(36).padStart(6, "0")}`;
-    const record_ = `${req.platform}.bulwark.eth`; // ENSv2 record name (v1: derived)
+    const record_ = `${req.platform}.repayd.eth`; // ENSv2 record name (v1: derived)
 
     const response: CoverageResponse = {
       policyId,

@@ -1,7 +1,7 @@
 /**
  * ERC-8004 registry addresses — single source of truth for every TS
  * consumer (SDK, orchestrator, dashboard). Arc-first, keyed by chainId;
- * NO addresses are hardcoded anywhere else. BULWARK contracts never
+ * NO addresses are hardcoded anywhere else. REPAYD contracts never
  * reference these (see docs/ERC8004_DESIGN.md §4).
  *
  * All three registries are the canonical ERC-8004 CREATE2 deployments at
