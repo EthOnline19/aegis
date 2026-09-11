@@ -12,7 +12,8 @@
     "resolve": "bun run scripts/resolve.ts"
   },
   "dependencies": {
-    "@bulwark/engine": "workspace:*"
+    "@bulwark/engine": "workspace:*",
+    "@bulwark/pricing": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

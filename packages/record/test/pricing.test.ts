@@ -3,7 +3,7 @@ import {
   expectedMonthlyUsd,
   multiplierOf,
   type PricingEvent,
-  type PremiumResult,
+  type Premium,
 } from "../src/pricing.ts";
 import { buildResume, type ResumeInput } from "../src/resume.ts";
 
@@ -24,7 +24,7 @@ const DEMO_EVENTS: PricingEvent[] = [
 
 describe("pricing wiring contract", () => {
   it("multiplierOf multiplies the §12 multiplier product", () => {
-    const premium: PremiumResult = {
+    const premium: Premium = {
       baseRatePct: 2,
       multipliers: [
         { name: "STREAK_DISCOUNT", value: 0.72, provenance: "COMPUTED", detail: "" },
@@ -36,7 +36,7 @@ describe("pricing wiring contract", () => {
   });
 
   it("expectedMonthlyUsd enforces the §12 formula on engine output", () => {
-    const premium: PremiumResult = {
+    const premium: Premium = {
       baseRatePct: 2,
       multipliers: [
         { name: "STREAK_DISCOUNT", value: 0.4, provenance: "COMPUTED", detail: "" },
