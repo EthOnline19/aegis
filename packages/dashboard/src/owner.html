@@ -42,6 +42,43 @@
   </nav>
 </header>
 
+<div class="grid" id="liveGrid">
+  <section class="card" style="grid-column:1/-1">
+    <h2>Live agent state — Arc testnet <span class="pill warn" id="atlasStatus">loading…</span></h2>
+    <div class="grid">
+      <section class="card">
+        <h2>GuardAccount</h2>
+        <div class="row"><span class="k">USDC balance</span><span id="guardUsdc">—</span></div>
+        <div class="row"><span class="k">policy day</span><span id="day">—</span></div>
+        <div class="row"><span class="k">daily spent</span><span id="spent">—</span></div>
+        <div class="row"><span class="k">daily txs</span><span id="count">—</span></div>
+        <div class="row"><span class="k">next hold id</span><span id="nextHoldId">—</span></div>
+      </section>
+      <section class="card">
+        <h2>MutualPool tranches</h2>
+        <div class="row"><span class="k">junior capital</span><span id="junior">—</span></div>
+        <div class="row"><span class="k">senior capital</span><span id="senior">—</span></div>
+      </section>
+      <section class="card">
+        <h2>Payout — amara (policy owner)</h2>
+        <div class="row"><span class="k">USDC wallet</span><span id="amaraUsdc">—</span></div>
+        <div class="row"><span class="k">last covered payout</span><span>$135.00 USDC</span></div>
+      </section>
+      <section class="card">
+        <h2>ERC-8004 agent mirror</h2>
+        <div class="row"><span class="k">agentId</span><span><span class="pill ok">894341</span></span></div>
+        <div class="row"><span class="k">identity</span><span style="font-size:11px">0x8004A818…494BD9e</span></div>
+        <div class="row"><span class="k">validation</span><span style="font-size:11px">0x8004Cb1B…cEB4272</span></div>
+        <div class="row"><span class="k">reputation</span><span style="font-size:11px">0x8004B663…388713</span></div>
+      </section>
+    </div>
+  </section>
+  <section class="card" style="grid-column:1/-1">
+    <h2>Circle Agent Stack touchpoint <span class="pill warn" id="circleStatus">loading…</span></h2>
+    <div id="circlePanel"></div>
+  </section>
+</div>
+
 <div class="grid">
   <section class="card">
     <h2>Policy — atlas.bulwark.eth</h2>
@@ -105,6 +142,63 @@
     el.textContent = streak + " days";
     document.getElementById("streakBar").style.width = Math.min(100, streak / 1.8) + "%";
   }, 5000);
+</script>
+<script>
+  const fmt = (raw) => (Number(raw) / 1e6).toLocaleString("en-US", { minimumFractionDigits: 2 });
+  const set = (id, text) => { document.getElementById(id).textContent = text; };
+  const pill = (id, cls, text) => {
+    const el = document.getElementById(id);
+    el.className = "pill " + cls;
+    el.textContent = text;
+  };
+
+  async function loadAtlas() {
+    try {
+      const r = await fetch("/api/atlas/overview");
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const o = await r.json();
+      set("guardUsdc", fmt(o.guard.usdc) + " USDC");
+      set("day", o.guard.dailyState.day);
+      set("spent", fmt(o.guard.dailyState.spent) + " / $800.00");
+      set("count", o.guard.dailyState.count + " / 5");
+      set("nextHoldId", o.guard.nextHoldId);
+      set("junior", fmt(o.pool.junior) + " USDC");
+      set("senior", fmt(o.pool.senior) + " USDC");
+      set("amaraUsdc", fmt(o.payout.amaraUsdc) + " USDC");
+      pill("atlasStatus", "ok", "live · chain " + o.chainId);
+    } catch {
+      pill("atlasStatus", "bad", "offline");
+    }
+  }
+
+  async function loadCircle() {
+    const panel = document.getElementById("circlePanel");
+    try {
+      const r = await fetch("/api/circle/agent-wallet");
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const c = await r.json();
+      const rows = [
+        ["mode", `<span class="pill ${c.mode === "dry-run" ? "warn" : "ok"}">${c.mode}</span>`],
+        ["chain", c.chain],
+        ["guard account", `<span style="font-size:11px">${c.guardAccount}</span>`],
+        ["guard USDC", fmt(c.guardUsdcBalance) + " USDC"],
+      ];
+      panel.innerHTML =
+        rows.map(([k, v]) => `<div class="row"><span class="k">${k}</span><span>${v}</span></div>`).join("") +
+        (c.mode === "dry-run"
+          ? `<div class="evt" style="margin-top:8px"><span class="pill warn">DRY-RUN</span> CIRCLE_API_KEY not configured — no Wallets API calls are made. The integration would issue:</div>` +
+            c.plannedCalls.map((p) => `<div class="evt"><time>${p.method} ${p.path}</time>${p.note}</div>`).join("")
+          : "");
+      pill("circleStatus", c.mode === "dry-run" ? "warn" : "ok", c.mode);
+    } catch {
+      panel.innerHTML = `<div class="evt"><span class="pill bad">offline</span> Circle touchpoint unreachable</div>`;
+      pill("circleStatus", "bad", "offline");
+    }
+  }
+
+  loadAtlas();
+  loadCircle();
+  setInterval(loadAtlas, 30000);
 </script>
 </body>
 </html>

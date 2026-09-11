@@ -41,6 +41,15 @@ const server = Bun.serve({
       }
     }
 
+    if (req.method === "GET" && (path === "/api/atlas/overview" || path === "/api/circle/agent-wallet")) {
+      try {
+        const res = await fetch(`${API}${path}`);
+        const body = (await res.json()) as unknown;
+        return json(res.status, body);
+      } catch {
+        return json(502, { error: "coverage api unreachable" });
+      }
+    }
     return new Response("not found", { status: 404 });
   },
 });
