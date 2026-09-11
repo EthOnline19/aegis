@@ -1,5 +1,5 @@
 /**
- * Protocol access for the demo (and any anvil session).
+ * Protocol access for the demo — any EVM chain with a deployed stack.
  * Two paths, one deploy path:
  *  - deployProtocol: deploys the five contracts + USDC mock, wires them,
  *    funds the pool, attaches Atlas's policy (the forge script mirrors this).
@@ -41,15 +41,37 @@ import type { DeploymentRecord } from "@bulwark/api/src/deployment.ts";
 export const ALICE = "0x328809bc894f92807417d2dad6b7c998c1afdac6";
 export const BOB = "0x1d96f2f6bef1202e4ce1ff6dad0c2cb002861d3e";
 export const CAROL = "0xa4d4c1f8a763ef6a0140d04291eceef913ffc272";
-export const FRESH_WALLET = "0x55405807c2766d2cb3724d671cc6c30458de6501";
+/**
+ * A recipient never seen before (GASP ONE's injected payee). Purely a
+ * stand-in address — no key exists for it; derived from ALICE by rotating
+ * the first two hex chars to the end so nothing is hardcoded and it can
+ * never collide with the allowlist entries.
+ */
+export const FRESH_WALLET = (`0x${ALICE.slice(4)}${ALICE.slice(2, 4)}`) as `0x${string}`;
 export const ATTACKER = "0x9f2c8a11b6c4d3e5f7a8b9c0d1e2f3a4b5c6d7e8";
 
-const WATCHER_PK = "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba";
-const AGENT_KEY_PK = "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e";
+/** Resolve a REQUIRED actor key from the environment; names the var, no fallback. */
+export function requiredKey(name: string): `0x${string}` {
+  const v = process.env[name];
+  if (!v) {
+    throw new Error(
+      `missing env var ${name} — export the demo actor's private key (0x + 64 hex) before running`,
+    );
+  }
+  return v as `0x${string}`;
+}
 
-/** Demo actors (deterministic anvil keys). */
-export const WATCHER: PrivateKeyAccount = privateKeyToAccount(WATCHER_PK);
-export const AGENT_KEY: PrivateKeyAccount = privateKeyToAccount(AGENT_KEY_PK);
+/** Demo actor accounts — env key names mirror Deploy.s.sol (WATCHER_PRIVATE_KEY, …).
+ *  Lazy so importing this module (tests: digest math only) never needs secrets. */
+export function watcherAccount(): PrivateKeyAccount {
+  return privateKeyToAccount(requiredKey("WATCHER_PRIVATE_KEY"));
+}
+export function agentKeyAccount(): PrivateKeyAccount {
+  return privateKeyToAccount(requiredKey("AGENT_KEY_PRIVATE_KEY"));
+}
+export function amaraAccount(): PrivateKeyAccount {
+  return privateKeyToAccount(requiredKey("AMARA_PRIVATE_KEY"));
+}
 
 const MAX_UINT256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn;
 
@@ -76,19 +98,37 @@ export interface DeployAccounts {
   readonly senior: PrivateKeyAccount;
 }
 
-/** RPC endpoint; DEMO_RPC_URL lets the demo attach to any anvil instance. */
-export const RPC_URL = process.env.DEMO_RPC_URL ?? "http://localhost:8545";
+/**
+ * DEMO_RPC_URL is REQUIRED — no localhost fallback (the demo attaches to any
+ * chain instance; an accidental default would silently point at the wrong one).
+ * DEMO_CHAIN_ID (or ARC_TESTNET_CHAIN_ID) selects the chain the clients and
+ * EIP-712 digests are bound to — it MUST match the chain the VerdictContract
+ * is deployed on, because the on-chain DOMAIN_SEPARATOR embeds block.chainid.
+ * Hardcoding 31337 here would make every demo-signed verdict fail on-chain
+ * ecrecover on any other chain (reopens the H2 cross-domain signature bug).
+ */
+export function rpcUrl(): string {
+  const v = process.env.DEMO_RPC_URL;
+  if (!v) {
+    throw new Error("missing env var DEMO_RPC_URL — export the RPC endpoint before running");
+  }
+  return v;
+}
+export const DEMO_CHAIN_ID = Number(
+  process.env.DEMO_CHAIN_ID ?? process.env.ARC_TESTNET_CHAIN_ID ?? anvil.id,
+);
 
-/** viem clients shared by the demo (anvil transport). */
+/** viem clients shared by the demo, bound to DEMO_CHAIN_ID's chain. */
 export function clients(): { public: PublicClient; amara: ReadWriteClient; agent: ReadWriteClient; watcher: ReadWriteClient } {
-  const pub = createPublicClient({ chain: anvil, transport: http(RPC_URL) });
+  const chain = { ...anvil, id: DEMO_CHAIN_ID } as typeof anvil;
+  const pub = createPublicClient({ chain, transport: http(rpcUrl()) });
   const rw = (account: PrivateKeyAccount): ReadWriteClient =>
-    createWalletClient({ account, chain: anvil, transport: http(RPC_URL) }).extend(publicActions);
+    createWalletClient({ account, chain, transport: http(rpcUrl()) }).extend(publicActions);
   return {
     public: pub,
-    amara: rw(privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d")),
-    agent: rw(AGENT_KEY),
-    watcher: rw(WATCHER),
+    amara: rw(amaraAccount()),
+    agent: rw(agentKeyAccount()),
+    watcher: rw(watcherAccount()),
   };
 }
 
@@ -116,14 +156,14 @@ export async function deployProtocol(
   ]);
   const guardAddr = await deployContract(deployer, GUARD_ACCOUNT.abi, GUARD_ACCOUNT.bytecode.object, [
     amaraAddr,
-    AGENT_KEY.address,
+    agentKeyAccount().address,
     registryAddr,
     blocklistAddr,
     usdcAddr,
   ]);
 
   // --- Wire. ---
-  await tx(deployer, verdictsAddr, VERDICT_CONTRACT.abi, "setWatcher", [WATCHER.address]);
+  await tx(deployer, verdictsAddr, VERDICT_CONTRACT.abi, "setWatcher", [watcherAccount().address]);
   await tx(deployer, verdictsAddr, VERDICT_CONTRACT.abi, "setPool", [poolAddr]);
   await tx(deployer, poolAddr, MUTUAL_POOL.abi, "setVerdictContract", [verdictsAddr]);
   await tx(deployer, blocklistAddr, BLOCKLIST.abi, "setReporter", [verdictsAddr, true]);
@@ -273,7 +313,8 @@ export async function submitCoveredVerdict(
   });
   // Raw ECDSA over the typed digest (no EIP-191 wrapper — matches the
   // contract's ecrecover(digest, v, r, s)).
-  const signature = signRawDigest(digest, WATCHER_PK);
+  const watcher = watcherAccount();
+  const signature = signRawDigest(digest, requiredKey("WATCHER_PRIVATE_KEY"));
 
   const hash = await c.watcher.writeContract({
     address: p.verdicts.address,
@@ -295,8 +336,8 @@ export async function submitCoveredVerdict(
       },
       signature,
     ],
-    chain: anvil,
-    account: WATCHER,
+    chain: { ...anvil, id: DEMO_CHAIN_ID } as typeof anvil,
+    account: watcher,
   });
   const receipt = await c.public.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new Error("submitVerdict failed");
@@ -313,14 +354,15 @@ export async function submitHoldVerdict(
   // EIP-712 over this deployment's domain (mirrors holdVerdictDigest712).
   const digest = holdVerdictDigest712(p.verdicts.address, holdId, p.policy.agent, policyHash, tier);
   // Raw ECDSA over the typed digest (matches ecrecover on-chain).
-  const signature = signRawDigest(digest, WATCHER_PK);
+  const watcher = watcherAccount();
+  const signature = signRawDigest(digest, requiredKey("WATCHER_PRIVATE_KEY"));
   await c.watcher.writeContract({
     address: p.verdicts.address,
     abi: VERDICT_CONTRACT.abi,
     functionName: "submitHoldVerdict",
     args: [holdId, p.policy.agent, policyHash, tier, signature],
-    chain: anvil,
-    account: WATCHER,
+    chain: { ...anvil, id: DEMO_CHAIN_ID } as typeof anvil,
+    account: watcher,
   });
 }
 
@@ -332,8 +374,15 @@ export async function submitHoldVerdict(
 //                     EIP-712 digest mirroring                       //
 // ------------------------------------------------------------------ //
 
-/** Keccak of the EIP-712 domain, mirroring VerdictContract's constants. */
-export function domainSeparator(verifyingContract: `0x${string}`): `0x${string}` {
+/**
+ * Keccak of the EIP-712 domain, mirroring VerdictContract's constructor.
+ * The chain ID is an explicit argument — the caller resolves it from
+ * DEMO_CHAIN_ID (env) so a digest is always bound to the chain the target
+ * contract is actually deployed on. Never hardcode a chain ID here: the
+ * on-chain DOMAIN_SEPARATOR embeds block.chainid, and a mismatched domain
+ * makes every signature fail on-chain ecrecover (H2 replay protection).
+ */
+export function domainSeparator(verifyingContract: `0x${string}`, chainId: bigint): `0x${string}` {
   return keccak256(
     encodeAbiParameters(
       [
@@ -353,7 +402,7 @@ export function domainSeparator(verifyingContract: `0x${string}`): `0x${string}`
         ),
         toHexBytes("BULWARK VerdictContract"),
         toHexBytes("1"),
-        BigInt(anvil.id),
+        chainId,
         verifyingContract,
         toHexBytes("BULWARK.verdict-domain.v1"),
       ],
@@ -383,6 +432,7 @@ export function verdictDigest712(
     reasons: ReadonlyArray<{ tag: `0x${string}`; provenance: number; detail: string }>;
     timestamp: bigint;
   },
+  chainId: bigint = BigInt(DEMO_CHAIN_ID),
 ): `0x${string}` {
   const reasonTypeHash = keccak256(toBytes("Reason(bytes4 tag,uint8 provenance,string detail)"));
   const verdictTypeHash = keccak256(
@@ -437,7 +487,7 @@ export function verdictDigest712(
   return keccak256(
     concatHexBytes([
       "0x1901",
-      domainSeparator(verifyingContract),
+      domainSeparator(verifyingContract, chainId),
       structHash,
     ]),
   );
@@ -450,6 +500,7 @@ function holdVerdictDigest712(
   agent: `0x${string}`,
   policyHash: `0x${string}`,
   tier: number,
+  chainId: bigint = BigInt(DEMO_CHAIN_ID),
 ): `0x${string}` {
   const typeHash = keccak256(toBytes("HoldVerdict(uint256 holdId,address agent,bytes32 policyHash,uint8 tier)"));
   const structHash = keccak256(
@@ -465,36 +516,35 @@ function holdVerdictDigest712(
     ),
   );
   return keccak256(
-    concatHexBytes(["0x1901", domainSeparator(verifyingContract), structHash]),
+    concatHexBytes(["0x1901", domainSeparator(verifyingContract, chainId), structHash]),
   );
 }
 
 function concatHexBytes(parts: ReadonlyArray<`0x${string}`>): `0x${string}` {
   return ("0x" + parts.map((p) => p.slice(2)).join("")) as `0x${string}`;
 }
-
 function asRw(account: PrivateKeyAccount): ReadWriteClient {
-  return createWalletClient({ account, chain: anvil, transport: http() }).extend(publicActions);
+  const chain = { ...anvil, id: DEMO_CHAIN_ID } as typeof anvil;
+  return createWalletClient({ account, chain, transport: http() }).extend(publicActions);
 }
-
 async function deployContract(
   client: ReadWriteClient,
   abi: Abi,
   bytecode: string,
   args: readonly unknown[],
 ): Promise<Address> {
+  const chain = { ...anvil, id: DEMO_CHAIN_ID } as typeof anvil;
   const hash = await client.deployContract({
     abi,
     bytecode: bytecode as `0x${string}`,
     args: args as never[],
     account: client.account,
-    chain: anvil,
+    chain,
   });
   const receipt = await client.waitForTransactionReceipt({ hash });
   if (!receipt.contractAddress) throw new Error("deploy failed: no contract address");
   return receipt.contractAddress;
 }
-
 async function tx(
   client: ReadWriteClient,
   address: Address,
@@ -502,13 +552,14 @@ async function tx(
   functionName: string,
   args: readonly unknown[],
 ): Promise<void> {
+  const chain = { ...anvil, id: DEMO_CHAIN_ID } as typeof anvil;
   const hash = await client.writeContract({
     address,
     abi,
     functionName,
     args: args as never[],
     account: client.account,
-    chain: anvil,
+    chain,
   });
   await client.waitForTransactionReceipt({ hash });
 }

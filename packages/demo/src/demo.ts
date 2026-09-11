@@ -1,5 +1,6 @@
 /**
- * BULWARK demo — the two-gasp choreography (plan §35), live on anvil.
+ * BULWARK demo — the two-gasp choreography (plan §35) against any EVM chain
+ * with a deployed stack: local anvil or a public testnet (Arc).
  *
  * [0:00] The setup: Atlas's policy card, the pool, the wallet.
  * [0:20] The routine: payroll runs — five txs, instant.
@@ -10,17 +11,19 @@
  *
  * Requires a PRE-DEPLOYED stack: cd contracts && forge script script/Deploy.s.sol
  * --rpc-url <rpc> --broadcast  (writes contracts/deployments/<chainId>.json).
- * DEMO_RPC_URL selects the chain (default http://localhost:8545).
+ * DEMO_RPC_URL is REQUIRED (no default). DEMO_CHAIN_ID selects the deployment.
  * Run: cd packages/demo && bun run src/demo.ts
  */
 
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits, parseUnits, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import {
   attachProtocol,
   clients,
-  RPC_URL,
+  DEMO_CHAIN_ID,
+  requiredKey,
+  rpcUrl,
   submitCoveredVerdict,
   submitHoldVerdict,
   ALICE,
@@ -33,22 +36,28 @@ import { loadDeployment } from "@bulwark/api/src/deployment.ts";
 import { Bulwark } from "@bulwark/agent-sdk";
 import { judgeBreach, judgeHold, type BehavioralFacts } from "@bulwark/engine";
 
-// Raw keys stay constants (viem accounts keep the key in closure);
-// the SDK needs the raw hex for session-key signing.
-const AMARA_PK = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
-const NUNO_PK = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";
+// Raw keys come from the environment (names mirror Deploy.s.sol); the SDK
+// needs the raw hex for session-key signing. Resolved at entry — this file
+// is the executable, so a missing var throws immediately with its name.
+const AMARA_PK = requiredKey("AMARA_PRIVATE_KEY");
+const NUNO_PK = requiredKey("NUNO_PRIVATE_KEY");
 const AMARA = privateKeyToAccount(AMARA_PK);
-const NUNO = privateKeyToAccount(NUNO_PK);
 
-/** Alice with the final nibble changed — edit distance 1 (Case 5's look-alike). */
-const LOOKALIKE = "0x328809bc894f92807417d2dad6b7c998c1afdac1" as const;
+/** Alice with the final nibble flipped — edit distance 1 (Case 5's look-alike). */
+const LOOKALIKE = (`${ALICE.slice(0, -1)}${ALICE.endsWith("1") ? "2" : "1"}`) as `0x${string}`;
 
 async function main(): Promise<void> {
   banner("BULWARK — deposit insurance for AI agents");
-  log("scene", `anvil local chain · ${RPC_URL}`);
+  log("scene", `chain ${DEMO_CHAIN_ID} · ${rpcUrl()}`);
 
   const c = clients();
-  const dep = await loadDeployment();
+  // Live chains (Arc) reject evm_* cheatcodes with -32601. Probe once: no
+  // warp means the whole demo runs inside ONE UTC day, so the $1,000 daily
+  // cap must stay wide enough for Case 5's look-alike slip (see payroll).
+  const warp = await canWarp(c.public);
+  // One chain-id source of truth: the same DEMO_CHAIN_ID picks RPC, clients,
+  // and the deployment record.
+  const dep = await loadDeployment(DEMO_CHAIN_ID);
   const p = await attachProtocol(c, dep);
 
   // -------- [0:00] The setup. --------
@@ -64,9 +73,11 @@ async function main(): Promise<void> {
     { to: BOB, amount: "310" }, // over global cap, under BOB's sub-cap
     { to: ALICE, amount: "90" },
     { to: BOB, amount: "220" },
-    { to: ALICE, amount: "150" },
+    // The 5th $150 only when the clock can jump two days: same-day, the
+    // daily budget it consumes is Case 5's slip's headroom (800 + 150 ≤ 1000).
+    ...(warp ? [{ to: ALICE, amount: "150" } satisfies { to: `0x${string}`; amount: string }] : []),
   ];
-  const history: `0x${string}`[] = [];
+
   for (const [i, t] of payroll.entries()) {
     const hash = await c.agent.writeContract({
       address: p.guard.address,
@@ -83,10 +94,14 @@ async function main(): Promise<void> {
 
   // -------- [0:45] GASP ONE (Cases 3 + 4). --------
   banner("[0:45] GASP ONE — the attack that never settles");
-  // Sunday 4AM: two days after Friday payroll (daily counters reset).
-  await c.public.request({ method: "evm_increaseTime", params: [2 * 86_400] });
-  await c.public.request({ method: "evm_mine", params: [] });
-  log("warp", "Sunday 4:00 AM — Amara is asleep; Atlas browses gig boards");
+  if (warp) {
+    // Sunday 4AM: two days after Friday payroll (daily counters reset).
+    await c.public.request({ method: "evm_increaseTime", params: [2 * 86_400] });
+    await c.public.request({ method: "evm_mine", params: [] });
+    log("warp", "Sunday 4:00 AM — Amara is asleep; Atlas browses gig boards");
+  } else {
+    log("clock", "live chain · no cheatcode warp — the attack lands the same UTC day");
+  }
   console.log(`
   ┌──────────────────────────────────────────────────────────────────┐
   │ Gig-board listing (hidden text, invisible to any human):         │
@@ -285,6 +300,16 @@ function ok(message: string): void {
 
 function short(addr: string): string {
   return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+}
+
+/** evm_mine succeeds only on dev chains; public RPCs answer -32601. */
+async function canWarp(pub: PublicClient): Promise<boolean> {
+  try {
+    await pub.request({ method: "evm_mine", params: [] });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ------------------------------------------------------------------ //

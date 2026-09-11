@@ -1,7 +1,7 @@
 {
   "name": "@bulwark/demo",
   "version": "0.1.0",
-  "description": "BULWARK demo — Atlas, the attack that never settles, and the same-block payout. Live on anvil.",
+  "description": "BULWARK demo — Atlas, the attack that never settles, and the same-block payout. Runs against any deployed stack (anvil or public testnet).",
   "type": "module",
   "scripts": {
     "demo": "bun run src/demo.ts",
