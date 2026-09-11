@@ -1,12 +1,19 @@
 /**
- * BULWARK Coverage API — Bun-native HTTP server.
+ * REPAYD Coverage API — Bun-native HTTP server.
  *
  * POST   /v1/coverage          create a policy (platforms call at agent birth)
  * GET    /v1/coverage/:id      fetch a policy
  * GET    /v1/platforms/:name   fleet dashboard (agents, volume, rev-share)
  * DELETE /v1/coverage/:id      cancel
  * POST   /v1/webhooks/platform event stream: agent created / funded / dormant
+ * GET    /v1/atlas/overview    live REPAYD agent state (Arc testnet, read-only)
+ * GET    /v1/circle/agent-wallet  Circle Agent Stack touchpoint (dry-run default)
  */
+
+import { createPublicClient, http, parseAbi } from "viem";
+
+import { agentWalletState, circleFromEnv } from "./circle/agent-wallet.ts";
+import { loadDeployment } from "./deployment.ts";
 
 import { CoverageStore } from "./store.ts";
 import { attachOnChain, bridgeFromEnv, verifyGuardOwnership } from "./coverage-bridge.ts";
@@ -31,6 +38,76 @@ const server = Bun.serve({
     const url = new URL(req.url);
     const path = url.pathname;
     const now = Math.floor(Date.now() / 1000);
+
+    // ------------------ GET /v1/atlas/overview ------------------ //
+    if (req.method === "GET" && path === "/v1/atlas/overview") {
+      try {
+        const dep = await loadDeployment(5042002);
+        const rpc = process.env["ARC_RPC_URL"] ?? "https://rpc.testnet.arc.io";
+        const client = createPublicClient({ transport: http(rpc) });
+        const ABI = parseAbi([
+          "function dailyState() view returns (uint256 day, uint96 spent, uint256 count)",
+          "function nextHoldId() view returns (uint256)",
+          "function balanceOf(address) view returns (uint256)",
+          "function juniorCapital() view returns (uint96)",
+          "function seniorCapital() view returns (uint96)",
+        ]);
+        const guard = dep.contracts.guardAccount;
+        const [daily, holdId, guardUsdc, junior, senior] = await Promise.all([
+          client.readContract({ address: guard, abi: ABI, functionName: "dailyState" }) as Promise<[bigint, bigint, bigint]>,
+          client.readContract({ address: guard, abi: ABI, functionName: "nextHoldId" }) as Promise<bigint>,
+          client.readContract({ address: dep.contracts.usdc, abi: ABI, functionName: "balanceOf", args: [guard] }) as Promise<bigint>,
+          client.readContract({ address: dep.contracts.mutualPool, abi: ABI, functionName: "juniorCapital" }) as Promise<bigint>,
+          client.readContract({ address: dep.contracts.mutualPool, abi: ABI, functionName: "seniorCapital" }) as Promise<bigint>,
+        ]);
+        const amaraUsdc = (await client.readContract({
+          address: dep.contracts.usdc,
+          abi: ABI,
+          functionName: "balanceOf",
+          args: [dep.actors.amaraPolicyOwner],
+        })) as bigint;
+        return json(200, {
+          chainId: dep.chainId,
+          agent: { erc8004AgentId: 894341, guard, owner: dep.actors.amaraPolicyOwner },
+          guard: {
+            usdc: guardUsdc.toString(),
+            dailyState: { day: daily[0].toString(), spent: daily[1].toString(), count: daily[2].toString() },
+            nextHoldId: holdId.toString(),
+          },
+          pool: { junior: junior.toString(), senior: senior.toString() },
+          payout: { amaraUsdc: amaraUsdc.toString() },
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "rpc error";
+        return json(502, { error: message });
+      }
+    }
+
+    // ------------------ GET /v1/circle/agent-wallet ------------------ //
+    if (req.method === "GET" && path === "/v1/circle/agent-wallet") {
+      try {
+        const dep = await loadDeployment(5042002);
+        const client = createPublicClient({
+          transport: http(process.env["ARC_RPC_URL"] ?? "https://rpc.testnet.arc.io"),
+        });
+        const ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
+        const guardUsdc = (await client.readContract({
+          address: dep.contracts.usdc,
+          abi: ABI,
+          functionName: "balanceOf",
+          args: [dep.contracts.guardAccount],
+        })) as bigint;
+        const config = circleFromEnv();
+        const state = await agentWalletState(config, {
+          address: dep.contracts.guardAccount,
+          usdcBalance: guardUsdc.toString(),
+        });
+        return json(200, state);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "circle error";
+        return json(502, { error: message });
+      }
+    }
 
     // ------------------ POST /v1/coverage ------------------ //
     if (req.method === "POST" && path === "/v1/coverage") {
