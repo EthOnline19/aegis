@@ -1,0 +1,16 @@
+{
+  "name": "@bulwark/pricing",
+  "version": "0.1.0",
+  "description": "BULWARK Pricing Engine v1 — telematics for machines. Deterministic premium formula (plan §12): premium = base_rate × coverage_cap × product(multipliers), every multiplier provenance-labeled VERIFIED or COMPUTED.",
+  "type": "module",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "scripts": {
+    "test": "bun test",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/bun": "^1.1.0"
+  }
+}
