@@ -62,7 +62,7 @@ import {
   VerdictContractSet as PoolVerdictContractSet,
 } from "../generated/MutualPool/MutualPool";
 import { Transfer as UsdcTransfer, Approval } from "../generated/Usdc/Usdc";
-import { BigInt, BigDecimal } from "@graphprotocol/graph-ts";
+import { BigInt, BigDecimal, Bytes, ethereum } from "@graphprotocol/graph-ts";
 
 // BulwarkTypes.Outcome
 const OUTCOME_NONE = 0;
@@ -130,7 +130,7 @@ export function handlePolicyUpdated(event: PolicyUpdated): void {
     policy.createdAt = event.block.timestamp;
   }
   policy.agent = agent.id;
-  policy.version = BigInt.fromUInt32(event.params.version);
+  policy.version = event.params.version;
   policy.policyHash = event.params.policyHash;
   policy.revoked = false;
   policy.revokedAt = null;
@@ -147,11 +147,11 @@ export function handlePolicyUpdated(event: PolicyUpdated): void {
     policy.cap = v.coverageCap;
     policy.perTx = v.perTxLimit;
     policy.daily = v.dailyLimit;
-    policy.velocity = BigInt.fromUInt32(v.velocityLimit);
-    policy.deductibleBps = BigInt.fromUInt32(v.deductibleBps);
-    policy.curfewStart = BigInt.fromUInt32(v.curfewStart);
-    policy.curfewEnd = BigInt.fromUInt32(v.curfewEnd);
-    policy.holdWindowSec = BigInt.fromUInt32(v.holdWindowSec);
+    policy.velocity = v.velocityLimit;
+    policy.deductibleBps = BigInt.fromI32(v.deductibleBps);
+    policy.curfewStart = v.curfewStart;
+    policy.curfewEnd = v.curfewEnd;
+    policy.holdWindowSec = v.holdWindowSec;
     policy.sdkInstalled = v.sdkInstalled;
 
     // Rebuild the allowlist (id: <policyId>-<recipient>).
@@ -247,7 +247,7 @@ export function handleHeld(event: Held): void {
   h.transaction = t.id;
   h.to = event.params.to;
   h.amount = event.params.amount;
-  h.releaseAt = BigInt.fromUInt64(event.params.releaseAt);
+  h.releaseAt = event.params.releaseAt;
   h.extendedTo = zeroBigInt();
   h.status = HOLD_PENDING;
   h.createdAt = event.block.timestamp;
@@ -294,7 +294,7 @@ export function handleOwnerDecision(event: OwnerDecision): void {
 export function handleHoldLapsed(event: HoldLapsed): void {
   const h = Hold.load(event.params.holdId.toString());
   if (h !== null) {
-    h.extendedTo = BigInt.fromUInt64(event.params.extendedTo);
+    h.extendedTo = event.params.extendedTo;
     h.save();
   }
 }

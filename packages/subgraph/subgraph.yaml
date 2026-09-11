@@ -83,9 +83,9 @@ dataSources:
           handler: handleReported
         - event: Cleared(indexed address)
           handler: handleCleared
-        - event: AdminChanged(address,address)
+        - event: AdminChanged(indexed address,indexed address)
           handler: handleAdminChanged
-        - event: ReporterSet(address,bool)
+        - event: ReporterSet(indexed address,bool)
           handler: handleReporterSet
   # -------------------------------------------------------------- #
   # VerdictContract — the auto-adjudicator
@@ -118,11 +118,11 @@ dataSources:
           handler: handleHoldVerdictRouted
         - event: AttemptedBreachSignal(indexed address,indexed bytes32,bytes4)
           handler: handleAttemptedBreachSignal
-        - event: Reopened(indexed bytes32,address)
+        - event: Reopened(indexed bytes32,indexed address)
           handler: handleReopened
-        - event: Escalated(indexed bytes32,address,uint256)
+        - event: Escalated(indexed bytes32,indexed address,uint256)
           handler: handleEscalated
-        - event: ArbitrationConcluded(indexed bytes32,bool,address)
+        - event: ArbitrationConcluded(indexed bytes32,bool,indexed address)
           handler: handleArbitrationConcluded
         - event: StrikeRecorded(indexed address,uint8)
           handler: handleStrikeRecorded
@@ -130,7 +130,7 @@ dataSources:
           handler: handleWatcherSet
         - event: PoolSet(indexed address,indexed address)
           handler: handlePoolSet
-        - event: ArbiterSet(address,bool)
+        - event: ArbiterSet(indexed address,bool)
           handler: handleArbiterSet
   # -------------------------------------------------------------- #
   # MutualPool — the capital (two tranches)
@@ -201,9 +201,9 @@ dataSources:
           handler: handleOwnerDecision
         - event: ExecutedRoutine(indexed address,uint96)
           handler: handleExecutedRoutine
-        - event: ViolationBlocked(bytes4 indexed,address indexed,uint96)
+        - event: ViolationBlocked(indexed bytes4,indexed address,uint96)
           handler: handleViolationBlocked
-        - event: AttemptedBreach(uint256 indexed,bytes32,bytes4)
+        - event: AttemptedBreach(indexed uint256,bytes32,bytes4)
           handler: handleGuardAttemptedBreach
         - event: AuthorityRevoked(address)
           handler: handleAuthorityRevoked
@@ -211,7 +211,7 @@ dataSources:
           handler: handleAgentKeyRotated
         - event: HoldLapsed(indexed uint256,uint64)
           handler: handleHoldLapsed
-        - event: Withdrawn(address,indexed address,uint96)
+        - event: Withdrawn(indexed address,indexed address,uint96)
           handler: handleWithdrawn
         - event: VerdictContractSet(indexed address,indexed address)
           handler: handleGuardVerdictContractSet
