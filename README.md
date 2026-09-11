@@ -22,6 +22,8 @@ A protected wallet that **holds** suspicious transactions for two minutes while 
 
 Video scripts (recordable now for Arc; post-credential for Graph/Hedera): [`docs/submission/video-scripts.md`](docs/submission/video-scripts.md).
 
+Full-stack architecture diagram + narrative (mermaid flow, demo data path, live-proof appendix, address table): [`docs/submission/architecture.md`](docs/submission/architecture.md).
+
 ## Quick start
 
 ```bash
