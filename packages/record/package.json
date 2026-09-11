@@ -1,0 +1,21 @@
+{
+  "name": "@bulwark/record",
+  "version": "0.1.0",
+  "description": "BULWARK ENSv2 Record — the agent's public insurance résumé. One lookup prices trust in the machine.",
+  "type": "module",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "register": "bun run scripts/register.ts",
+    "resolve": "bun run scripts/resolve.ts"
+  },
+  "dependencies": {
+    "@bulwark/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
