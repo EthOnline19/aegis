@@ -25,6 +25,7 @@
 import {
   createPublicClient,
   createWalletClient,
+  decodeFunctionResult,
   encodeAbiParameters,
   encodeFunctionData,
   http,
@@ -512,16 +513,18 @@ export async function resolveName(
     ENSV2_TEXT_KEYS.chainhead,
   ];
   const out: Record<string, string> = {};
+  const resolveAbi = parseAbi([
+    "function resolve(bytes name, bytes data) returns (bytes result, address resolver)",
+  ]);
+  const textReturnAbi = parseAbi(["function text(bytes32 node, string key) view returns (string)"]);
   for (const key of keys) {
-    // Direct resolver read via the universal resolver's resolve() is the
-    // canonical path; viem's getEnsText needs the account's resolver set,
-    // which for a PermissionedResolver proxy is the proxy itself.
+    // Canonical path: UniversalResolverProxy.resolve(dnsName, text-calldata)
+    // returns (abiEncodedResult, resolver). The inner result must be
+    // decoded as text()'s own return (a string).
     try {
       const value = await client.readContract({
         address: ENSV2_ADDRESSES.universalResolverProxy,
-        abi: parseAbi([
-          "function resolve(bytes name, bytes data) returns (bytes result, address resolver)",
-        ]),
+        abi: resolveAbi,
         functionName: "resolve",
         args: [
           toHex(dnsEncode(name)),
@@ -532,7 +535,12 @@ export async function resolveName(
           }),
         ],
       });
-      out[key] = value[0];
+      const [decoded] = decodeFunctionResult({
+        abi: textReturnAbi,
+        functionName: "text",
+        data: value[0],
+      });
+      out[key] = decoded ?? "";
     } catch {
       out[key] = ""; // key absent or name unresolved — print, don't crash
     }

@@ -251,7 +251,7 @@ export function fromEnsTextRecords(
   const out: Partial<Record<FieldKey, { text: string; provenance: Provenance }>> = {};
   for (const k of FIELD_ORDER) {
     const raw = records[ENS_TEXT_KEY[k]];
-    if (raw !== undefined) out[k] = parseEnsTextValue(raw);
+    if (raw !== undefined && raw !== "") out[k] = parseEnsTextValue(raw);
   }
   return out;
 }

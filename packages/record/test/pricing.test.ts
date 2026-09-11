@@ -60,8 +60,12 @@ describe("pricing wiring contract", () => {
       status: "ACTIVE",
     };
     expect(buildResume(input).DRIVING.text).toContain("premium 0.72x");
-    // The demo event stream is kept honest: clean days + attempt + claim
-    // + KYA + SDK must exist for the 0.72x figure to be defensible.
+    // 0.72x is the §35 demo figure: the fresh-policy quote of
+    // sdk_discount (−10%) × kya_discount (−20%) = 0.72. The demo event
+    // stream (clean days + attempt + claim + KYA + SDK) prices the NEXT
+    // term higher under §12 (claim load ×3 within 180d ≈ 2.6x; ×1.5 with
+    // a mitigation event ≈ 1.3x). The résumé displays the multiplier it
+    // is handed — provenance stays COMPUTED either way.
     const kinds = DEMO_EVENTS.map((e) => e.kind);
     for (const required of ["clean_day", "attempted_breach", "covered_claim", "kya_verified", "sdk_installed"]) {
       expect(kinds).toContain(required);
