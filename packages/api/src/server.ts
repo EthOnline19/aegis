@@ -9,6 +9,7 @@
  */
 
 import { CoverageStore } from "./store.ts";
+import { attachOnChain, bridgeFromEnv, verifyGuardOwnership } from "./coverage-bridge.ts";
 import { parseCoverageRequest } from "./schemas.ts";
 import type { StoredPolicy } from "./store.ts";
 
@@ -42,6 +43,20 @@ const server = Bun.serve({
       try {
         const parsed = parseCoverageRequest(body);
         const response = store.create(parsed, now);
+        // On-chain materialization (§14 → §30): when the platform key is
+        // configured, the policy is attached to PolicyRegistry so the
+        // GuardAccount enforces it and the Risk Subgraph indexes the event.
+        // Store-first keeps the API contract intact even if the chain leg
+        // fails — the response carries the outcome.
+        const bridge = bridgeFromEnv();
+        if (bridge) {
+          const ownership = await verifyGuardOwnership(bridge, parsed.agentWallet);
+          if (!ownership.ok) {
+            return json(422, { error: `guard precheck failed: ${ownership.reason}` });
+          }
+          const attach = await attachOnChain(bridge, parsed.policy, parsed.agentWallet);
+          return json(201, { ...response, onChain: { txHash: attach.txHash, version: attach.version, policyHash: attach.policyHash, registry: attach.registry } });
+        }
         return json(201, response);
       } catch (e) {
         const message = e instanceof Error ? e.message : "bad request";
