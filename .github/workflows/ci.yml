@@ -80,3 +80,6 @@ jobs:
 
       - name: Test API
         run: cd packages/api && bunx vitest run
+
+      - name: Test DEMO
+        run: cd packages/demo && bunx vitest run
