@@ -1,122 +1,162 @@
-# BULWARK Risk Subgraph — schema
+# BULWARK Risk Subgraph — schema.
+# The public memory of the protocol: every policy, tier decision, hold,
+# verdict, claim, strike, and pool flow across all covered agents.
+
+# ------------------------------------------------------------------ //
+#                          Core entities                              //
+# ------------------------------------------------------------------ //
+
+type Agent @entity {
+  id: ID! # GuardAccount address (the "agent" everywhere in the stack)
+  guardAddress: Bytes!
+  streak: BigInt! # clean ExecutedRoutine txs since last strike/attempt
+  premiumMultiplier: BigDecimal! # current product-of-multipliers signal
+  lastRoutineAt: BigInt
+  lastIncidentAt: BigInt
+  totalRoutineTx: BigInt!
+  totalAttempts: BigInt!
+  policy: Policy @derivedFrom(field: "agent")
+  transactions: [Transaction!]! @derivedFrom(field: "agent")
+  verdicts: [Verdict!]! @derivedFrom(field: "agent")
+  claims: [Claim!]! @derivedFrom(field: "agent")
+  holds: [Hold!]! @derivedFrom(field: "agent")
+}
 
 type Policy @entity {
-  id: ID!
-  agent: Bytes!
-  owner: Bytes!
+  id: ID! # agent (GuardAccount) address — one live policy per agent
+  agent: Agent!
   version: BigInt!
   policyHash: Bytes!
-  coverageCap: BigInt!
+  owner: Bytes!
+  cap: BigInt! # coverageCap (USDC 6dp)
+  perTx: BigInt! # per-tx limit for non-allowlisted recipients
+  daily: BigInt! # per-UTC-day limit
+  velocity: BigInt! # max executed txs per UTC day
   deductibleBps: BigInt!
-  perTxLimit: BigInt!
-  dailyLimit: BigInt!
-  velocityLimit: BigInt!
-  allowlist: [RecipientCap!]!
+  curfewStart: BigInt!
+  curfewEnd: BigInt!
   holdWindowSec: BigInt!
   sdkInstalled: Boolean!
+  revoked: Boolean!
+  revokedAt: BigInt
   createdAt: BigInt!
   updatedAt: BigInt!
-  revoked: Boolean!
-  classifications: [Classification!]! @derivedFrom(field: "policy")
-  verdicts: [Verdict!]! @derivedFrom(field: "policy")
+  allowlist: [RecipientCap!]! @derivedFrom(field: "policy")
 }
 
 type RecipientCap @entity {
-  id: ID!
+  id: ID! # <policyId>-<recipient>
   policy: Policy!
   recipient: Bytes!
   cap: BigInt!
 }
 
-type Classification @entity {
-  id: ID!
-  policy: Policy!
-  agent: Bytes!
-  tier: Int!
-  tag: Bytes!
+type Transaction @entity {
+  id: ID! # txHash-logIndex (a tx can classify several transfers)
+  agent: Agent!
+  txHash: Bytes!
   to: Bytes!
   amount: BigInt!
+  txTier: Int! # 0 routine, 1 elevated(hold), 2 violation(blocked)
+  tag: Bytes!
+  executed: Boolean! # routine txs actually moved funds
   blockTimestamp: BigInt!
-  hold: Hold @derivedFrom(field: "classification")
+  hold: Hold @derivedFrom(field: "transaction")
 }
 
 type Hold @entity {
-  id: ID!
-  classification: Classification!
-  agent: Bytes!
+  id: ID! # holdId
+  agent: Agent!
+  transaction: Transaction!
   to: Bytes!
   amount: BigInt!
   releaseAt: BigInt!
-  createdAt: BigInt!
   extendedTo: BigInt!
+  # 0 pending → 1 released, 2 frozen, 3 owner-approved, 4 owner-frozen,
+  # 5 owner-frozen+rotated, 6 watcher-frozen (0xFF), 7 auto-frozen (0xFE)
   status: Int!
+  createdAt: BigInt!
   resolvedAt: BigInt
   resolvedBy: Bytes
 }
 
 type Verdict @entity {
-  id: ID!
-  policy: Policy!
-  agent: Bytes!
-  claimant: Bytes!
-  txHash: Bytes!
-  destination: Bytes
-  outcome: Int!
-  alibi: Int!
-  lossAmount: BigInt!
-  payoutAmount: BigInt!
+  id: ID! # digest (VerdictAccepted) or txHash (AttemptedBreachSignal)
+  agent: Agent!
+  policy: Policy # null when no policy attached at verdict time
+  outcome: Int! # BulwarkTypes.Outcome: 0 none, 1 covered, 2 denied-owner,
+  # 3 attempted-breach, 4 dismissed
+  payout: BigInt!
+  alibi: Int! # BulwarkTypes.Alibi: 0 unknown, 1 external, 2 owner-signed
+  digest: Bytes!
   acceptedAt: BigInt!
-  reasons: [Reason!]! @derivedFrom(field: "verdict")
+  claim: Claim @derivedFrom(field: "verdict")
+  reopenCount: BigInt!
 }
 
-type Reason @entity {
-  id: ID!
+type Claim @entity {
+  id: ID! # verdict digest
   verdict: Verdict!
-  tag: String!
-  provenance: Int!
-  detail: String!
+  agent: Agent!
+  claimant: Bytes! # paid address (pool transfer target)
+  payout: BigInt!
+  covered: Boolean! # outcome == COVERED (pool paid)
+  denied: Boolean! # outcome == DENIED_OWNER_ORIGIN (claim scar)
+  paidAt: BigInt
+  blockTimestamp: BigInt!
 }
 
 type BlocklistEntry @entity {
-  id: ID!
+  id: ID! # destination address
   destination: Bytes!
   strikes: Int!
-  flagged: Boolean!
+  flagged: Boolean! # >= 3 strikes
+  cleared: Boolean!
+  evidence: Bytes # latest evidence hash
   reports: [Report!]! @derivedFrom(field: "entry")
 }
 
 type Report @entity {
-  id: ID!
+  id: ID! # txHash-logIndex
   entry: BlocklistEntry!
   evidence: Bytes!
-  reporter: Bytes!
+  reporter: Bytes! # VerdictContract / curator
+  blockTimestamp: BigInt!
+}
+
+type Transfer @entity {
+  id: ID! # txHash-logIndex
+  from: Bytes!
+  to: Bytes!
+  value: BigInt!
+  blockTimestamp: BigInt!
+}
+
+# ------------------------------------------------------------------ //
+#                        Pool flows                                   //
+# ------------------------------------------------------------------ //
+
+type PoolFlow @entity {
+  id: ID! # txHash-logIndex
+  type: String! # DEPOSIT | REDEEM | PAYOUT | PREMIUM | LOSS | REINSURANCE
+  amount: BigInt!
+  tranche: Int # 0 senior, 1 junior (null when n/a)
+  depositor: Bytes
+  claimant: Bytes
+  agent: Bytes
+  digest: Bytes # verdict digest for PAYOUT
+  juniorLoss: BigInt
+  seniorLoss: BigInt
+  reinsuranceLoss: BigInt
   blockTimestamp: BigInt!
 }
 
 type PoolState @entity {
-  id: ID!
+  id: ID! # singleton "pool"
   juniorCapital: BigInt!
   seniorCapital: BigInt!
   premiumPool: BigInt!
   totalPayouts: BigInt!
   claimCount: Int!
-}
-
-type Payout @entity {
-  id: ID!
-  claimant: Bytes!
-  amount: BigInt!
-  juniorLoss: BigInt!
-  seniorLoss: BigInt!
-  verdict: Verdict!
-  blockTimestamp: BigInt!
-}
-
-type TrancheDeposit @entity {
-  id: ID!
-  depositor: Bytes!
-  tranche: Int!
-  assets: BigInt!
-  shares: BigInt!
-  blockTimestamp: BigInt!
+  updatedAt: BigInt!
 }

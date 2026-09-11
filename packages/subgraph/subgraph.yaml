@@ -1,17 +1,45 @@
 specVersion: 0.0.5
-description: BULWARK Risk Subgraph — every policy-second, tier decision,
-  verdict, claim, and blocklist entry across all covered agents. A public good.
+description: BULWARK Risk Subgraph — every policy, tier decision, hold,
+  verdict, claim, strike, and pool flow across all covered agents. A public good.
 repository: https://github.com/EthOnline19/aegis
 schema:
   file: ./schema.graphql
 dataSources:
+  # -------------------------------------------------------------- #
+  # USDCMock — mint/burn/transfer flows (pool + guard funding)
+  # -------------------------------------------------------------- #
+  - kind: ethereum
+    name: Usdc
+    network: arc-testnet
+    source:
+      address: "0xb95fe4d7EEDb98693ded8F3c1a34A59F6Dac114B"
+      abi: Usdc
+      startBlock: 61614321
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/mapping.ts
+      entities:
+        - Transfer
+      abis:
+        - name: Usdc
+          file: ./abis/Usdc.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleUsdcTransfer
+        - event: Approval(indexed address,indexed address,uint256)
+          handler: handleUsdcApproval
+  # -------------------------------------------------------------- #
+  # PolicyRegistry — policy lineage
+  # -------------------------------------------------------------- #
   - kind: ethereum
     name: PolicyRegistry
     network: arc-testnet
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0xcC34D02877E13Bf35Ad7E4eBC747d431B76e748a"
       abi: PolicyRegistry
-      startBlock: 0
+      startBlock: 61614324
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -20,6 +48,7 @@ dataSources:
       entities:
         - Policy
         - RecipientCap
+        - Agent
       abis:
         - name: PolicyRegistry
           file: ./abis/PolicyRegistry.json
@@ -28,67 +57,16 @@ dataSources:
           handler: handlePolicyUpdated
         - event: PolicyRevoked(indexed address,indexed uint32)
           handler: handlePolicyRevoked
-  - kind: ethereum
-    name: GuardAccount
-    network: arc-testnet
-    source:
-      address: "0x0000000000000000000000000000000000000000"
-      abi: GuardAccount
-      startBlock: 0
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      file: ./src/mapping.ts
-      entities:
-        - Classification
-        - Hold
-      abis:
-        - name: GuardAccount
-          file: ./abis/GuardAccount.json
-      eventHandlers:
-        - event: Classified(uint8,indexed address,uint96,bytes4)
-          handler: handleClassified
-        - event: Held(indexed uint256,indexed address,uint96,uint64)
-          handler: handleHeld
-        - event: Released(indexed uint256,indexed address,uint96)
-          handler: handleReleased
-        - event: OwnerDecision(indexed uint256,uint8,address)
-          handler: handleOwnerDecision
-        - event: HoldLapsed(indexed uint256,uint64)
-          handler: handleHoldLapsed
-  - kind: ethereum
-    name: VerdictContract
-    network: arc-testnet
-    source:
-      address: "0x0000000000000000000000000000000000000000"
-      abi: VerdictContract
-      startBlock: 0
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      file: ./src/mapping.ts
-      entities:
-        - Verdict
-        - Reason
-        - BlocklistEntry
-        - Report
-      abis:
-        - name: VerdictContract
-          file: ./abis/VerdictContract.json
-      eventHandlers:
-        - event: VerdictAccepted(indexed bytes32,indexed address,uint8,uint96,uint8)
-          handler: handleVerdictAccepted
-        - event: AttemptedBreachSignal(indexed address,indexed bytes32,bytes4)
-          handler: handleAttemptedBreach
+  # -------------------------------------------------------------- #
+  # Blocklist — the shared memory of attackers
+  # -------------------------------------------------------------- #
   - kind: ethereum
     name: Blocklist
     network: arc-testnet
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0x19afa08179eD7De19a0e45FC35362A663ACa8322"
       abi: Blocklist
-      startBlock: 0
+      startBlock: 61614329
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -105,31 +83,137 @@ dataSources:
           handler: handleReported
         - event: Cleared(indexed address)
           handler: handleCleared
+        - event: AdminChanged(address,address)
+          handler: handleAdminChanged
+        - event: ReporterSet(address,bool)
+          handler: handleReporterSet
+  # -------------------------------------------------------------- #
+  # VerdictContract — the auto-adjudicator
+  # -------------------------------------------------------------- #
   - kind: ethereum
-    name: MutualPool
+    name: VerdictContract
     network: arc-testnet
     source:
-      address: "0x0000000000000000000000000000000000000000"
-      abi: MutualPool
-      startBlock: 0
+      address: "0x7B46f82B37458771Bc88f79e5642e8AEFE2AC52f"
+      abi: VerdictContract
+      startBlock: 61614331
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       file: ./src/mapping.ts
       entities:
+        - Verdict
+        - Claim
+        - Agent
+        - Hold
+        - BlocklistEntry
+      abis:
+        - name: VerdictContract
+          file: ./abis/VerdictContract.json
+      eventHandlers:
+        - event: VerdictAccepted(indexed bytes32,indexed address,uint8,uint96,uint8)
+          handler: handleVerdictAccepted
+        - event: HoldVerdictRouted(indexed uint256,indexed address,bool)
+          handler: handleHoldVerdictRouted
+        - event: AttemptedBreachSignal(indexed address,indexed bytes32,bytes4)
+          handler: handleAttemptedBreachSignal
+        - event: Reopened(indexed bytes32,address)
+          handler: handleReopened
+        - event: Escalated(indexed bytes32,address,uint256)
+          handler: handleEscalated
+        - event: ArbitrationConcluded(indexed bytes32,bool,address)
+          handler: handleArbitrationConcluded
+        - event: StrikeRecorded(indexed address,uint8)
+          handler: handleStrikeRecorded
+        - event: WatcherSet(indexed address,indexed address)
+          handler: handleWatcherSet
+        - event: PoolSet(indexed address,indexed address)
+          handler: handlePoolSet
+        - event: ArbiterSet(address,bool)
+          handler: handleArbiterSet
+  # -------------------------------------------------------------- #
+  # MutualPool — the capital (two tranches)
+  # -------------------------------------------------------------- #
+  - kind: ethereum
+    name: MutualPool
+    network: arc-testnet
+    source:
+      address: "0x35d78e526cB230Eaa287AFe622f25DEB07B772e4"
+      abi: MutualPool
+      startBlock: 61614333
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/mapping.ts
+      entities:
+        - PoolFlow
         - PoolState
-        - Payout
-        - TrancheDeposit
       abis:
         - name: MutualPool
           file: ./abis/MutualPool.json
       eventHandlers:
         - event: Deposited(indexed address,indexed uint8,uint256,uint256)
           handler: handleDeposited
+        - event: Redeemed(indexed address,indexed uint8,uint256,uint256)
+          handler: handleRedeemed
         - event: Payout(indexed address,uint96,indexed bytes32)
           handler: handlePayout
-        - event: LossApplied(uint96,uint96,uint96,uint96)
-          handler: handleLossApplied
         - event: PremiumRecorded(indexed address,uint96)
           handler: handlePremiumRecorded
+        - event: LossApplied(uint96,uint96,uint96,uint96)
+          handler: handleLossApplied
+        - event: ReinsuranceHooked(indexed address,uint256)
+          handler: handleReinsuranceHooked
+        - event: VerdictContractSet(indexed address,indexed address)
+          handler: handlePoolVerdictContractSet
+  # -------------------------------------------------------------- #
+  # GuardAccount — enforcement + the hold lifecycle
+  # -------------------------------------------------------------- #
+  - kind: ethereum
+    name: GuardAccount
+    network: arc-testnet
+    source:
+      address: "0xB30553e2f132126B951D3a6AD4E07EbAa5523b6E"
+      abi: GuardAccount
+      startBlock: 61614335
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/mapping.ts
+      entities:
+        - Transaction
+        - Agent
+        - Hold
+      abis:
+        - name: GuardAccount
+          file: ./abis/GuardAccount.json
+      eventHandlers:
+        - event: Classified(uint8,indexed address,uint96,bytes4)
+          handler: handleClassified
+        - event: Held(indexed uint256,indexed address,uint96,uint64)
+          handler: handleHeld
+        - event: Released(indexed uint256,indexed address,uint96)
+          handler: handleReleased
+        - event: OwnerDecision(indexed uint256,uint8,address)
+          handler: handleOwnerDecision
+        - event: ExecutedRoutine(indexed address,uint96)
+          handler: handleExecutedRoutine
+        - event: ViolationBlocked(bytes4 indexed,address indexed,uint96)
+          handler: handleViolationBlocked
+        - event: AttemptedBreach(uint256 indexed,bytes32,bytes4)
+          handler: handleGuardAttemptedBreach
+        - event: AuthorityRevoked(address)
+          handler: handleAuthorityRevoked
+        - event: AgentKeyRotated(indexed address)
+          handler: handleAgentKeyRotated
+        - event: HoldLapsed(indexed uint256,uint64)
+          handler: handleHoldLapsed
+        - event: Withdrawn(address,indexed address,uint96)
+          handler: handleWithdrawn
+        - event: VerdictContractSet(indexed address,indexed address)
+          handler: handleGuardVerdictContractSet
+        - event: Received(indexed address,uint256)
+          handler: handleReceived
