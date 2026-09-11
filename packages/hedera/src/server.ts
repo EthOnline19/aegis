@@ -199,7 +199,9 @@ app.get("/healthz", (_req, res) => {
     hcsAudit: hcsLive ? "live" : "dry-run",
     meter: {
       servedCalls: snap.counts,
-      billedTinybars: snap.billedTinybars,
+      billedTinybars: Object.fromEntries(
+        Object.entries(snap.billedTinybars).map(([k, v]) => [k, v.toString()]),
+      ),
       totalBilledTinybars: snap.totalTinybars.toString(),
     },
   });
