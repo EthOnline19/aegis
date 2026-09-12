@@ -42,7 +42,7 @@ flowchart TB
 
     subgraph GRAPH["The Graph — Risk Subgraph (single shared read replica)"]
         SG["repayd-risk-arc: 36 events across all<br/>six contracts · 9 entities"]
-        ERC["repayd-erc8004: canonical ERC-8004<br/>registry subgraph, joined on agentId"]
+        ERC["repayd (erc8004 manifest): canonical ERC-8004<br/>registry subgraph, joined on agentId"]
         VAL -- "indexed" --> SG
         TEE -- "indexed" --> SG
         SG --- ERC
