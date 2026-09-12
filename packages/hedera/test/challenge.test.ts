@@ -14,8 +14,10 @@ import { describe, expect, it } from "bun:test";
  *  - Settlement echoes back on `PAYMENT-RESPONSE`.
  */
 
-const MOCK_FACILITATOR_PORT = 4602;
-const SERVICE_PORT = 4601;
+// Distinct from the live demo service (:4601) so the suite is hermetic while
+// the demo runs; env-overridable for CI.
+const MOCK_FACILITATOR_PORT = Number(process.env.TEST_FACILITATOR_PORT ?? 4712);
+const SERVICE_PORT = Number(process.env.TEST_SERVICE_PORT ?? 4711);
 const PAY_TO = "0.0.10484593";
 const AGENT = "0x05499b0be3B9E9Db3Cc5124b2F682513D94133A6";
 
