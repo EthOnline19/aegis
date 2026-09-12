@@ -52,6 +52,7 @@ import {
   verdictEndpoint,
   verdictRequestUri,
   type VerdictOutcome,
+  type Reader,
   type Erc8004Registries,
 } from "@repayd/agent-sdk";
 
@@ -136,7 +137,9 @@ export class Erc8004Orchestrator {
     this.chainId = config.chainId ?? ARC_TESTNET_CHAIN_ID;
     this.registries = erc8004ForChain(this.chainId);
     if (config.rpcUrl !== undefined) {
-      const reader = createPublicClient({ transport: http(config.rpcUrl) });
+      // viem's generic chain inference (undefined vs union) doesn't unify
+      // with the SDK's Reader shape — the calls used are chain-agnostic.
+      const reader = createPublicClient({ transport: http(config.rpcUrl) }) as unknown as Reader;
       this.validations = new ValidationClient(this.registries.validation as `0x${string}`, reader, VALIDATION_ABI);
     }
   }
