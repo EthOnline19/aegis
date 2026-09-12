@@ -718,12 +718,15 @@ export async function resolveName(
           }),
         ],
       });
-      const [decoded] = decodeFunctionResult({
+      // viem decodeFunctionResult returns the SCALAR for single-output
+      // functions — destructuring it as [decoded] would take the first
+      // character of the string.
+      const decoded = decodeFunctionResult({
         abi: textReturnAbi,
         functionName: "text",
         data: value[0],
       });
-      out[key] = decoded ?? "";
+      out[key] = typeof decoded === "string" ? decoded : "";
     } catch {
       out[key] = ""; // key absent or name unresolved — print, don't crash
     }
