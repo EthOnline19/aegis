@@ -44,7 +44,7 @@ These are written on-chain from the verified Step-4 run (agentId 894341, digest 
 **CI (`.github/workflows/ci.yml`):** contains zero `@bulwark` references — no changes needed (verified).
 
 ## Ownership gates (live coordination)
-- ArcFinish2: packages/api (server.ts, circle/) — committed 4b49640; dashboard owner.html pending.
+- ArcFinish2: packages/api (server.ts, circle/) — committed 4285dbe; dashboard owner.html pending.
 - HederaFinish2: packages/hedera (payloads.ts imports @bulwark/engine + @bulwark/record).
 - GraphFinish2: packages/subgraph/erc8004 + new api files.
 - ComplianceFinish2: docs/submission/* + README.md.
