@@ -20,7 +20,7 @@ A protected wallet that **holds** suspicious transactions for two minutes while 
 | **The Graph** — Best AI Tooling or AI Use Case (From Scratch) + Best Use of Composable or Standardized Graph Products | $5,000 + $5,000 | The **REPAYD Risk Subgraph**: 36 events, 9 entities, live provider data (Studio deploy), consumed by the AI **pricing engine** (streaks → premium decisions) and **risk-posture consumer** — plus composition with the **ERC-8004/Agent0 standardized schema** on `agentId` | [`docs/submission/compliance-matrix.md`](docs/submission/compliance-matrix.md#track-2a--the-graph-best-ai-tooling-or-ai-use-case-from-scratch-5000) |
 | **Hedera** — AI & Agentic Payments on Hedera | $6,000 (up to 3 × $2,000) | A **live x402-gated Risk Posture service on Hedera testnet** settled through Blocky402, consumed by the same guard agent in a **real paid request end-to-end** — with ERC-8004 cross-chain identity, HCS audit receipts, and scheduled-transaction settlement | [`docs/submission/compliance-matrix.md`](docs/submission/compliance-matrix.md#track-3--hedera-ai--agentic-payments-on-hedera-6000-up-to-3--2000) |
 
-Video scripts (recordable now for Arc; post-credential for Graph/Hedera): [`docs/submission/video-scripts.md`](docs/submission/video-scripts.md).
+Video scripts (all three recordable now — services live): [`docs/submission/video-scripts.md`](docs/submission/video-scripts.md).
 
 Full-stack architecture diagram + narrative (mermaid flow, demo data path, live-proof appendix, address table): [`docs/submission/architecture.md`](docs/submission/architecture.md).
 Deploy procedure + cost for the Graph tracks: [`docs/submission/graph-deploy.md`](docs/submission/graph-deploy.md) (Studio free tier — $0).
@@ -84,13 +84,14 @@ Architecture diagram + narrative: [`docs/submission/architecture.md`](docs/submi
 | Package | What it is | Proof |
 |---|---|---|
 | `contracts/` | Solidity (Foundry): `PolicyRegistry`, `GuardAccount`, `VerdictContract`, `MutualPool`, `Blocklist` + ERC-8004 integration | **53 tests** (unit + 1000-run fuzz invariants) |
-| `packages/engine` | Watcher & Verdict Engine + deterministic TS core | **27 tests** incl. same-inputs-same-verdict |
-| `packages/sdk` | Agent SDK — instruction hash-chain (the alibi) | **9 tests** |
-| `packages/api` | Coverage API + ERC-8004 orchestrator (mirrors verdicts to the canonical registries) | **12 tests** + live Arc run (Step-4) |
-| `packages/pricing` | The §12 pricing formula — streak/attempt/claim/anomaly multipliers with provenance labels | invariant + integration tests |
-| `packages/record` | §13 résumé builder + ENSv2 writer/resolver (gated scripts) | tested; registration needs Sepolia funds |
-| `packages/subgraph` | The Risk Subgraph — 36 events, 9 entities, Arc testnet manifest | codegen + WASM build verified |
-| `packages/dashboard` | Owner / Capital / Record surfaces | content-verified + API-integrated |
+| `packages/engine` | Watcher & Verdict Engine + deterministic TS core | **30 tests** (vitest, incl. same-inputs-same-verdict) |
+| `packages/sdk` | Agent SDK — instruction hash-chain (the alibi) + ERC-8004 clients | **35 tests** (vitest) |
+| `packages/api` | Coverage API (store + on-chain bridge), ERC-8004 orchestrator, Circle Agent Stack, live chain-read + Graph risk-posture endpoints | **55 tests** (bun test) + live Arc/Hedera/Circle/Graph runs |
+| `packages/pricing` | §12 pricing formula — streak/attempt/claim/anomaly multipliers with provenance labels | **34 tests** |
+| `packages/record` | §13 résumé builder + ENSv2 writer/resolver | 30 tests; **LIVE on Sepolia** (`atlasrepayd.eth`) |
+| `packages/subgraph` | Risk Subgraph (38 events, 9 entities) + canonical **ERC-8004 registries** subgraph | **LIVE on Graph Studio** (both build + serve) |
+| `packages/hedera` | x402-gated Coverage & Risk API (Blocky402) + payer agent + HCS audit + Scheduled Transactions | **19 tests**; **LIVE — two real paid requests settled on testnet** |
+| `packages/dashboard` | Owner / Capital / Record surfaces | live-wired to the Arc chain via API proxies |
 | `packages/demo` | The two-gasp demo — anvil locally, **Arc testnet live** | **exit 0; 14 txs independently verified** |
 
 ## What we proved on-chain (Step-4, Arc testnet, 2026-09-11)
@@ -103,15 +104,14 @@ Architecture diagram + narrative: [`docs/submission/architecture.md`](docs/submi
 - Look-alike slip: held by the elevated lane, covered verdict → **$135 payout same-block** as the verdict.
 - Daily-spend accounting honest on-chain: day 20707, $800 spent, count 4 — held amounts excluded.
 
-## What needs credentials (honest status)
+## Live status by track (2026-09-12)
 
-Full list with owners and unblocks: [`docs/submission/credential-checklist.md`](docs/submission/credential-checklist.md).
+Full credential detail: [`docs/submission/credential-checklist.md`](docs/submission/credential-checklist.md) · per-requirement evidence: [`docs/submission/compliance-matrix.md`](docs/submission/compliance-matrix.md).
 
-1. **The Graph Studio deploy key** — deploys the Risk Subgraph to `arc-testnet`; unblocks the live-provider-data gates of **both** $5,000 Graph tracks. Everything else for those tracks (schema, mappings, consumers) is built and tested.
-2. **Hedera testnet operator keys** — deploy the x402-gated service via Blocky402 and execute the first real paid request; unblocks the $6,000 track's core requirement and video.
-3. **Circle API key** — direct Agent Stack / Paymaster / Nanopayments API calls; the Arc track's core (autonomous USDC spending, decision logic, same-block settlement) is already proven on-chain without it.
-4. **Arc mainnet decision** — the $2,500 rider needs a mainnet deploy by **Sept 30, 2026**; contracts and deploy script are chain-agnostic and ready. **NEEDS DECISION.**
-5. **Sepolia ETH + MockUSDC** — ENSv2 name registration for the agent-discovery extra credit.
+1. **The Graph — LIVE.** Both subgraphs deployed on Studio (`repayd-risk-arc` v0.1.3; ERC-8004 registries under slug `repayd` v0.0.7), the AI risk-posture consumer runs against the live endpoint (2.7× multiplier / 135 USDC premium computed from indexed Step-4 events). Cost $0 (free tier).
+2. **Hedera — LIVE.** x402-gated Coverage & Risk API on Hedera testnet through the Blocky402 facilitator: **two real paid requests settled on-chain** (mirror-node verified), HCS audit memos on topic `0.0.10493275`, Scheduled Transaction `0.0.10493353` created and executed. Service stays hot for the video.
+3. **ENSv2 — LIVE.** `atlasrepayd.eth` registered on Sepolia with the full §13 résumé in text records (5 txs, resolve-verified); zero-tx idempotent re-runs.
+4. **Arc — LIVE except two optional cells.** Step-4 demo + ERC-8004 mirror + live dashboards + architecture diagram: DONE. Circle reads live (Wallets API `/v1/w3s/*` + Gateway unified balance); wallet create/spend awaits an entity-secret console reset ($0). **Mainnet rider ($5,000): DECIDED PURSUE — deploy pre–Sept 30 once funded (the only real-money item).**
 
 ## The fraud moat (the Cryptographic Alibi)
 
