@@ -4,7 +4,7 @@ description: "REPAYD ERC-8004 Standard Registries Subgraph — indexes the
   testnet. Any ERC-8004-conformant agent, not just REPAYD-covered ones.
   Composes with the REPAYD Risk Subgraph: one query pattern joins verdicts
   to their standard-registry mirrors."
-repository: https://github.com/EthOnline19/aegis
+repository: https://github.com/Repayd/repayd
 schema:
   file: ./schema.graphql
 dataSources:
@@ -19,7 +19,7 @@ dataSources:
       address: "0x8004A818BFB912233c491871b3d84c89A494BD9e"
       abi: Erc8004Identity
       # first block with code, binary-searched via eth_getCode
-      startBlock: 29241340
+      startBlock: 61300000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -48,7 +48,7 @@ dataSources:
       address: "0x8004B663056A597Dffe9eCcC1965A193B7388713"
       abi: Erc8004Reputation
       # first block with code, binary-searched via eth_getCode
-      startBlock: 29241344
+      startBlock: 61300000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -76,7 +76,7 @@ dataSources:
       address: "0x8004Cb1BF31DAf7788923b405b754f57acEB4272"
       abi: Erc8004Validation
       # first block with code, binary-searched via eth_getCode
-      startBlock: 29241349
+      startBlock: 61300000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
