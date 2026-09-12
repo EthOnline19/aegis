@@ -56,7 +56,7 @@ import {
   VALUE_BY_OUTCOME,
   deriveRequestHash,
   erc8004ForChain,
-} from "@bulwark/agent-sdk";
+} from "@repayd/agent-sdk";
 
 import {
   createOrchestrator,

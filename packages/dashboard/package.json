@@ -1,5 +1,5 @@
 {
-  "name": "@bulwark/dashboard",
+  "name": "@repayd/dashboard",
   "version": "0.1.0",
   "description": "REPAYD dashboards — Owner (policy, alerts, driving record), Capital (pool, tranches, claims feed), Public record lookup.",
   "type": "module",

@@ -1,5 +1,5 @@
 {
-  "name": "@bulwark/record",
+  "name": "@repayd/record",
   "version": "0.1.0",
   "description": "REPAYD ENSv2 Record — the agent's public insurance résumé. One lookup prices trust in the machine.",
   "type": "module",
@@ -12,8 +12,9 @@
     "resolve": "bun run scripts/resolve.ts"
   },
   "dependencies": {
-    "@bulwark/engine": "workspace:*",
-    "@bulwark/pricing": "workspace:*"
+    "@repayd/engine": "workspace:*",
+    "@repayd/pricing": "workspace:*",
+    "viem": "^2.56.3"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

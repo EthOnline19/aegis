@@ -1,5 +1,5 @@
 /**
- * Pricing wiring — the real @bulwark/pricing engine (shared contract, §12).
+ * Pricing wiring — the real @repayd/pricing engine (shared contract, §12).
  *
  *   computePremium(
  *     policy: { coverageCapUsd: number; baseRatePct?: number },
@@ -11,19 +11,19 @@
  * figure and the §12 formula invariant used by the wiring test.
  */
 
-import { computePremium as engineComputePremium } from "@bulwark/pricing";
+import { computePremium as engineComputePremium } from "@repayd/pricing";
 import type {
   PricingEvent,
   PricingPolicy,
   PricingMultiplier,
   Premium,
-} from "@bulwark/pricing";
+} from "@repayd/pricing";
 
 export type { PricingEvent, PricingPolicy, PricingMultiplier, Premium };
 
-export { computePremium } from "@bulwark/pricing";
+export { computePremium } from "@repayd/pricing";
 
-/** The @bulwark/pricing module surface (kept for callers that load dynamically). */
+/** The @repayd/pricing module surface (kept for callers that load dynamically). */
 export interface PricingEngine {
   computePremium(policy: PricingPolicy, events: readonly PricingEvent[]): Premium;
 }

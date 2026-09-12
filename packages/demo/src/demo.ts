@@ -32,9 +32,9 @@ import {
   ATTACKER,
   type Protocol,
 } from "./protocol.ts";
-import { loadDeployment } from "@bulwark/api/src/deployment.ts";
-import { Repayd } from "@bulwark/agent-sdk";
-import { judgeBreach, judgeHold, type BehavioralFacts } from "@bulwark/engine";
+import { loadDeployment } from "@repayd/api/src/deployment.ts";
+import { Repayd } from "@repayd/agent-sdk";
+import { judgeBreach, judgeHold, type BehavioralFacts } from "@repayd/engine";
 
 // Raw keys come from the environment (names mirror Deploy.s.sol); the SDK
 // needs the raw hex for session-key signing. Resolved at entry — this file

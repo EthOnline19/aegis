@@ -1,5 +1,5 @@
 {
-  "name": "@bulwark/subgraph",
+  "name": "@repayd/subgraph",
   "version": "0.1.0",
   "description": "REPAYD Risk Subgraph — every policy-second, tier decision, verdict, claim, and blocklist entry. A public good.",
   "scripts": {

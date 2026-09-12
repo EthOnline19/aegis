@@ -40,7 +40,7 @@ import {
   erc8004ForChain,
   type Erc8004Registries,
   verdictEndpoint,
-} from "@bulwark/agent-sdk";
+} from "@repayd/agent-sdk";
 
 const RPC = process.env.ARC_RPC_URL ?? "https://rpc.testnet.arc.io";
 

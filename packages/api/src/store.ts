@@ -7,7 +7,7 @@
  * tracked per platform for settlement.
  */
 
-import { quote, type DrivingRecord } from "@bulwark/engine";
+import { quote, type DrivingRecord } from "@repayd/engine";
 import type { CoverageRequest, CoverageResponse } from "./schemas.ts";
 
 export interface StoredPolicy {

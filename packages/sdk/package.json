@@ -1,5 +1,5 @@
 {
-  "name": "@bulwark/agent-sdk",
+  "name": "@repayd/agent-sdk",
   "version": "0.1.0",
   "description": "REPAYD Agent SDK — instruction hash-chain, session-key signing, TEE co-signing. The alibi data source.",
   "type": "module",

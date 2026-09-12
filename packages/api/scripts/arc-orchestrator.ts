@@ -19,7 +19,7 @@
 import { createPublicClient, http, publicActions, type Log } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { ARC_TESTNET_CHAIN_ID } from "@bulwark/agent-sdk";
+import { ARC_TESTNET_CHAIN_ID } from "@repayd/agent-sdk";
 import {
   createOrchestrator,
   HOLD_VERDICT_ROUTED_EVENT,

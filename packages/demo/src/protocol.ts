@@ -34,9 +34,9 @@ import VERDICT_CONTRACT from "../../../contracts/out/VerdictContract.sol/Verdict
 import MUTUAL_POOL from "../../../contracts/out/MutualPool.sol/MutualPool.json";
 import BLOCKLIST from "../../../contracts/out/Blocklist.sol/Blocklist.json";
 import USDC_MOCK from "../../../contracts/out/USDCMock.sol/USDCMock.json";
-import type { Policy } from "@bulwark/engine";
-import { toOnChainPolicy } from "@bulwark/engine";
-import type { DeploymentRecord } from "@bulwark/api/src/deployment.ts";
+import type { Policy } from "@repayd/engine";
+import { toOnChainPolicy } from "@repayd/engine";
+import type { DeploymentRecord } from "@repayd/api/src/deployment.ts";
 
 export const ALICE = "0x328809bc894f92807417d2dad6b7c998c1afdac6";
 export const BOB = "0x1d96f2f6bef1202e4ce1ff6dad0c2cb002861d3e";

@@ -1,5 +1,5 @@
 {
-  "name": "@bulwark/api",
+  "name": "@repayd/api",
   "version": "0.1.0",
   "description": "REPAYD Coverage API — embedded insurance for agent platforms. POST /v1/coverage.",
   "type": "module",
@@ -11,8 +11,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@bulwark/engine": "workspace:*",
-    "@bulwark/agent-sdk": "workspace:*"
+    "@repayd/engine": "workspace:*",
+    "@repayd/agent-sdk": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

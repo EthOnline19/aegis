@@ -1,5 +1,5 @@
 {
-  "name": "@bulwark/engine",
+  "name": "@repayd/engine",
   "version": "0.1.0",
   "description": "REPAYD Watcher & Verdict Engine — deterministic tier logic, anomaly scoring, alibi check. The AI narrates; the code decides.",
   "type": "module",

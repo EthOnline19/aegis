@@ -3,7 +3,7 @@
  *
  * Queries the deployed REPAYD Risk Subgraph GraphQL endpoint (env
  * GRAPH_API_URL; Studio endpoints carry ?jwt=<GRAPH_API_KEY>), projects the
- * on-chain history (streak, verdicts, claims) into the @bulwark/engine
+ * on-chain history (streak, verdicts, claims) into the @repayd/engine
  * `quote()` inputs, and emits the Risk Posture: multiplier, monthly premium,
  * labeled reasons, a deterministic natural-language summary, and anomaly
  * flags. NO hardcoded data — every number traces to a GraphQL field.
@@ -16,7 +16,7 @@
  *   COVERAGE_CAP_USDC=<whole USDC>  (default 2500)
  */
 
-import { quote, type DrivingRecord, USDC_DECIMALS } from "@bulwark/engine";
+import { quote, type DrivingRecord, USDC_DECIMALS } from "@repayd/engine";
 
 /** Agent-level projection of the Risk Subgraph (matches schema.graphql). */
 interface GraphAgent {

@@ -26,10 +26,11 @@
  *
  * API shapes follow Circle's OpenAPI spec
  * (https://developers.circle.com/openapi/developer-controlled-wallets.yaml):
- *   POST /v1/w3s/developer/walletSets      { entitySecretCiphertext, idempotencyKey, name }
- *   POST /v1/w3s/developer/wallets         { blockchains, count, accountType, entitySecretCiphertext, idempotencyKey, walletSetId }
- *   GET  /v1/w3s/developer/wallets/balances?blockchain=ARC-TESTNET&walletAddress=…
- *   POST /v1/w3s/developer/transactions/transfer { destinationAddress, amounts, walletAddress, blockchain, entitySecretCiphertext, idempotencyKey, feeLevel }
+ *   POST /v1/w3s/walletSets                { entitySecretCiphertext, idempotencyKey, name }
+ *   POST /v1/w3s/wallets                   { blockchains, count, accountType, walletSetId, entitySecretCiphertext, idempotencyKey }
+ *   GET  /v1/w3s/wallets?blockchain=ARC-TESTNET   (list; ?walletId= for one)
+ *   GET  /v1/w3s/wallets/{id}/balances     (USDC balance per wallet)
+ *   POST /v1/w3s/transactions/transfer     { destinationAddress, amounts, walletId, blockchain, entitySecretCiphertext, idempotencyKey, feeLevel }
  */
 
 import { createHash, randomUUID } from "node:crypto";
@@ -44,8 +45,10 @@ const API_BASE = "https://api.circle.com";
  *  blockchain identifier itself selects the testnet chain. */
 
 export interface CircleConfig {
+  /** Full 3-part form: TEST_API_KEY:<id>:<secret>. */
   readonly apiKey: string;
-  readonly entitySecret: string;
+  /** Undefined ⇒ reads stay live, mutations always print their bodies. */
+  readonly entitySecret?: string;
   readonly walletSetId?: string;
   readonly walletAddress?: string;
   readonly dryRun: boolean;
@@ -74,35 +77,37 @@ export interface CircleWalletState {
     readonly txId?: string;
   };
   readonly plannedCalls: readonly PlannedCall[];
+  readonly note?: string;
 }
 
 /**
  * Resolve Circle config from env; null = integration disabled (no CIRCLE_API_KEY).
  * Never throws on missing env — absence simply disables, like bridgeFromEnv().
+ * A missing CIRCLE_ENTITY_SECRET only disables mutations; live reads continue.
  */
 export function circleFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): CircleConfig | null {
-  const apiKey = env["CIRCLE_API_KEY"];
-  if (!apiKey) return null;
-  const entitySecret = env["CIRCLE_ENTITY_SECRET"];
-  if (!entitySecret) {
-    throw new Error("CIRCLE_API_KEY is set but CIRCLE_ENTITY_SECRET is missing — register an entity secret in the Circle Console");
-  }
+  const raw = env["CIRCLE_API_KEY"];
+  if (!raw) return null;
+  // Accept either the full 3-part key (TEST_API_KEY:<id>:<secret>) or the
+  // 2-part id:secret form shown in the Console — normalize to 3-part.
+  const parts = raw.split(":");
+  const apiKey =
+    parts.length === 3 ? raw : parts.length === 2 ? `TEST_API_KEY:${raw}` : raw;
   return {
     apiKey,
-    entitySecret,
+    entitySecret: env["CIRCLE_ENTITY_SECRET"],
     walletSetId: env["CIRCLE_WALLET_SET_ID"],
     walletAddress: env["CIRCLE_AGENT_WALLET_ADDRESS"],
     dryRun: env["CIRCLE_DRY_RUN"] === "1",
     demoSpend: env["CIRCLE_DEMO_SPEND"] === "1",
   };
 }
-
 /**
- * The exact calls agentWalletState() would make, without a configured key.
- * This is the dry-run contract: judges (and we) can see precisely which
- * Circle Wallets API endpoints the integration hits.
+ * The exact calls agentWalletState() would make in dry-run, without a
+ * configured entity secret: judges (and we) see precisely which Circle
+ * Wallets API endpoints the integration hits.
  */
 export function planCircleCalls(input: {
   walletSetId?: string;
@@ -114,7 +119,7 @@ export function planCircleCalls(input: {
   if (!input.walletSetId) {
     calls.push({
       method: "POST",
-      path: "/v1/w3s/developer/walletSets",
+      path: "/v1/w3s/walletSets",
       body: { name: "REPAYD Agent Treasury", entitySecretCiphertext: "<encrypted-per-request>", idempotencyKey: "<uuid>" },
       note: "create a developer-controlled wallet set (or pass CIRCLE_WALLET_SET_ID to reuse)",
     });
@@ -122,7 +127,7 @@ export function planCircleCalls(input: {
   if (!input.walletAddress) {
     calls.push({
       method: "POST",
-      path: "/v1/w3s/developer/wallets",
+      path: "/v1/w3s/wallets",
       body: {
         blockchains: [CIRCLE_CHAIN],
         count: 1,
@@ -136,13 +141,13 @@ export function planCircleCalls(input: {
   }
   calls.push({
     method: "GET",
-    path: `/v1/w3s/developer/wallets/balances?blockchain=${CIRCLE_CHAIN}${input.walletAddress ? `&walletAddress=${input.walletAddress}` : ""}`,
-    note: "read the Circle wallet's USDC balance (balances update after each transfer)",
+    path: `/v1/w3s/wallets?blockchain=${CIRCLE_CHAIN}`,
+    note: "list wallets on ARC-TESTNET, then GET /v1/w3s/wallets/{id}/balances for the USDC balance (updates after each transfer)",
   });
   if (input.demoSpend) {
     calls.push({
       method: "POST",
-      path: "/v1/w3s/developer/transactions/transfer",
+      path: "/v1/w3s/transactions/transfer",
       body: {
         blockchain: CIRCLE_CHAIN,
         walletAddress: input.walletAddress ?? "<agent wallet>",
@@ -215,13 +220,17 @@ export async function agentWalletState(
     };
   }
 
-  // ---- Live: read path (balances) is fully programmatic. ---- //
+  // ---- Live reads: only the API key is needed. Mutations require the
+  // entity secret; without it they stay printed (dry-run mutation plan). ---- //
+  const canMutate = config.entitySecret !== undefined && !config.dryRun;
+
+  // ---- Live: read path (wallet + balances list) is fully programmatic. ---- //
   let walletSetId = config.walletSetId;
   let walletAddress = config.walletAddress;
   let circleUsdcBalance: string | undefined;
 
   if (walletAddress) {
-    const res = await circleFetch(config, "GET", `/v1/w3s/developer/wallets/balances?blockchain=${CIRCLE_CHAIN}&walletAddress=${walletAddress}`);
+    const res = await circleFetch(config, "GET", `/v1/w3s/wallets?blockchain=${CIRCLE_CHAIN}`);
     const body = (await res.json()) as CircleBalancesResponse;
     const wallet = body.data?.wallets?.find((w) => w.address?.toLowerCase() === walletAddress!.toLowerCase());
     if (!wallet) {
@@ -231,11 +240,29 @@ export async function agentWalletState(
     const usdc = wallet.balances?.find((b) => b.token?.symbol === "USDC");
     circleUsdcBalance = usdc?.amount ?? "0";
   } else {
-    throw new Error(
-      "live Circle mode needs CIRCLE_AGENT_WALLET_ADDRESS (create the wallet once via the Circle Console or the quickstart script, then pin its address) — reads are then fully programmatic",
-    );
+    // No wallet pinned yet: list what exists (real authenticated read).
+    const res = await circleFetch(config, "GET", `/v1/w3s/wallets?blockchain=${CIRCLE_CHAIN}`);
+    const body = (await res.json()) as CircleBalancesResponse;
+    const wallets = body.data?.wallets ?? [];
+    if (wallets.length === 0) {
+      return {
+        mode: "live",
+        chain: CIRCLE_CHAIN,
+        guardAccount: guard.address,
+        guardUsdcBalance: guard.usdcBalance,
+        demoSpend: { planned: false },
+        plannedCalls: canMutate
+          ? []
+          : planCircleCalls({ demoSpend: false }),
+        note: "authenticated: no wallet provisioned yet — plannedCalls shows the one-time creation path (needs CIRCLE_ENTITY_SECRET)",
+      };
+    }
+    const first = wallets[0]!;
+    walletAddress = first.address;
+    walletSetId = walletSetId ?? first.walletSetId;
+    const usdc = first.balances?.find((b) => b.token?.symbol === "USDC");
+    circleUsdcBalance = usdc?.amount ?? "0";
   }
-
   return {
     mode: "live",
     chain: CIRCLE_CHAIN,
@@ -244,10 +271,12 @@ export async function agentWalletState(
     circleUsdcBalance,
     guardAccount: guard.address,
     guardUsdcBalance: guard.usdcBalance,
-    demoSpend: { planned: false },
-    plannedCalls: [],
+    demoSpend: { planned: canMutate ? false : true, amount: canMutate ? undefined : "1.00" },
+    plannedCalls: canMutate ? [] : planCircleCalls({ walletSetId, walletAddress, demoSpend: false }),
   };
 }
+
+
 
 /** Authenticated Circle API fetch (live mode only). */
 async function circleFetch(

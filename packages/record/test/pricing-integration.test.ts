@@ -9,7 +9,7 @@ import {
 import { buildResume } from "../src/resume.ts";
 
 /**
- * Live integration against the real @bulwark/pricing engine (§12).
+ * Live integration against the real @repayd/pricing engine (§12).
  *
  * Two event sets:
  * - FRESH: sdk + kya only — the §35 demo figure's provenance:
@@ -36,7 +36,7 @@ const DEMO: PricingEvent[] = [
 
 const POLICY = { coverageCapUsd: 2500 };
 
-describe("live @bulwark/pricing integration", () => {
+describe("live @repayd/pricing integration", () => {
   it("fresh quote: sdk × kya discounts = 0.72x → $36.00/mo on a $2,500 cap", () => {
     const premium = computePremium(POLICY, FRESH);
     expect(multiplierOf(premium)).toBeCloseTo(0.72, 6);

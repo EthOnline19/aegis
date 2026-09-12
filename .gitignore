@@ -10,6 +10,9 @@ contracts/broadcast/
 # graph build outputs
 packages/subgraph/build/
 packages/subgraph/generated/
+packages/subgraph/erc8004/build/
+packages/subgraph/erc8004/generated/
+packages/subgraph/generated/
 
 # js build
 dist/

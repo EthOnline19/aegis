@@ -35,6 +35,7 @@ import {
   stringToHex,
   toHex,
   type Address,
+  type LocalAccount,
   type WalletClient,
 } from "viem";
 import { sepolia } from "viem/chains";
@@ -141,6 +142,10 @@ export interface RegistrationPlan {
 export interface Ensv2PublicClient {
   readContract: ReturnType<typeof createPublicClient>["readContract"];
   waitForTransactionReceipt: ReturnType<typeof createPublicClient>["waitForTransactionReceipt"];
+  getTransactionCount: ReturnType<typeof createPublicClient>["getTransactionCount"];
+  estimateGas: ReturnType<typeof createPublicClient>["estimateGas"];
+  estimateFeesPerGas: ReturnType<typeof createPublicClient>["estimateFeesPerGas"];
+  sendRawTransaction: ReturnType<typeof createPublicClient>["sendRawTransaction"];
 }
 
 const sleep = (ms: number): Promise<void> => {
@@ -342,11 +347,19 @@ export function renderForChain(resume: Resume): string {
 //                          Execution (gated)                          //
 // ------------------------------------------------------------------ //
 
-export function createEnsv2PublicClient(rpcUrl: string) {
-  return createPublicClient({
+export function createEnsv2PublicClient(rpcUrl: string): Ensv2PublicClient {
+  const full = createPublicClient({
     transport: http(rpcUrl),
     chain: sepolia,
   });
+  return {
+    readContract: full.readContract.bind(full),
+    waitForTransactionReceipt: full.waitForTransactionReceipt.bind(full),
+    getTransactionCount: full.getTransactionCount.bind(full),
+    estimateGas: full.estimateGas.bind(full),
+    estimateFeesPerGas: full.estimateFeesPerGas.bind(full),
+    sendRawTransaction: full.sendRawTransaction.bind(full),
+  };
 }
 
 /**
@@ -398,17 +411,34 @@ export async function executeRegistrationPlan(
   if (!wallet.account) throw new Error("wallet client has no account");
   const owner = wallet.account.address;
   const txHashes: `0x${string}`[] = [];
+  // Public RPCs (publicnode) reject eth_sendTransaction ("unknown account"):
+  // sign locally and broadcast eth_sendRawTransaction instead.
+  const chainId = sepolia.id;
+  const signer = wallet.account as LocalAccount;
+  const sendRaw = async (to: Address, data: `0x${string}`): Promise<`0x${string}`> => {
+    const nonce = await client.getTransactionCount({ address: owner });
+    const gas = await client.estimateGas({ account: owner, to, data });
+    const fee = await client.estimateFeesPerGas({ chain: sepolia });
+    const maxFeePerGas = fee.maxFeePerGas ?? 10_000_000_000n;
+    const maxPriorityFeePerGas = fee.maxPriorityFeePerGas ?? 1_000_000_000n;
+    const signed = await signer.signTransaction({
+      to,
+      data,
+      nonce,
+      gas,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+      chainId,
+    });
+    return client.sendRawTransaction({ serializedTransaction: signed });
+  };
 
   // 0. Deploy the resolver proxy (CREATE2 — no-op if the salt is spent).
-  const deployHash = await wallet.writeContract({
-    address: plan.resolverDeploy.to,
+  const deployHash = await sendRaw(plan.resolverDeploy.to, encodeFunctionData({
     abi: verifiableFactoryAbi,
     functionName: "deployProxy",
     args: [ENSV2_ADDRESSES.permissionedResolverImpl, plan.resolverDeploy.salt, plan.resolverDeploy.data],
-    account: owner,
-    chain: sepolia,
-  });
-  txHashes.push(deployHash);
+  }));
   const deployReceipt = await client.waitForTransactionReceipt({ hash: deployHash });
   const deployed = deployReceipt.logs.find((log) =>
     log.address.toLowerCase() === ENSV2_ADDRESSES.verifiableFactory.toLowerCase(),
@@ -427,15 +457,11 @@ export async function executeRegistrationPlan(
     args: [plan.label, ONE_YEAR, ENSV2_ADDRESSES.mockUsdc],
   });
   const total = price[0] + price[1];
-  const approveHash = await wallet.writeContract({
-    address: ENSV2_ADDRESSES.mockUsdc,
+  const approveHash = await sendRaw(ENSV2_ADDRESSES.mockUsdc, encodeFunctionData({
     abi: erc20MinimalAbi,
     functionName: "approve",
     args: [ENSV2_ADDRESSES.ethRegistrar, total],
-    account: owner,
-    chain: sepolia,
-  });
-  txHashes.push(approveHash);
+  }));
   await client.waitForTransactionReceipt({ hash: approveHash });
 
   // 2. Commit (rebind the plan with the real resolver address).
@@ -448,23 +474,18 @@ export async function executeRegistrationPlan(
     duration: ONE_YEAR,
     referrer: `0x${"00".repeat(32)}` as `0x${string}`,
   });
-  const commitHash = await wallet.writeContract({
-    address: ENSV2_ADDRESSES.ethRegistrar,
+  const commitHash = await sendRaw(ENSV2_ADDRESSES.ethRegistrar, encodeFunctionData({
     abi: ethRegistrarAbi,
     functionName: "commit",
     args: [commitment],
-    account: owner,
-    chain: sepolia,
-  });
-  txHashes.push(commitHash);
+  }));
   await client.waitForTransactionReceipt({ hash: commitHash });
 
   // 3. Wait out MIN_COMMITMENT_AGE.
   await sleep(plan.waitSeconds * 1000);
 
   // 4. Register.
-  const registerHash = await wallet.writeContract({
-    address: ENSV2_ADDRESSES.ethRegistrar,
+  const registerHash = await sendRaw(ENSV2_ADDRESSES.ethRegistrar, encodeFunctionData({
     abi: ethRegistrarAbi,
     functionName: "register",
     args: [
@@ -477,10 +498,7 @@ export async function executeRegistrationPlan(
       ENSV2_ADDRESSES.mockUsdc,
       `0x${"00".repeat(32)}`,
     ],
-    account: owner,
-    chain: sepolia,
-  });
-  txHashes.push(registerHash);
+  }));
   const registerReceipt = await client.waitForTransactionReceipt({ hash: registerHash });
   const registered = registerReceipt.logs.find(
     (log) => log.address.toLowerCase() === ENSV2_ADDRESSES.ethRegistrar.toLowerCase(),

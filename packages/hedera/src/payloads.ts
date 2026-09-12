@@ -7,8 +7,8 @@
  * ENSv2 résumé builder. Same inputs, same outputs, forever.
  */
 
-import { quote, type DrivingRecord, type Reason } from "@bulwark/engine";
-import { buildResume, renderResume, type ResumeInput } from "@bulwark/record";
+import { quote, type DrivingRecord, type Reason } from "@repayd/engine";
+import { buildResume, renderResume, type ResumeInput } from "@repayd/record";
 
 /** The canonical ERC-8004 agent identity from the verified Step-4 run. */
 export const ERC8004_AGENT_ID = 894341n;

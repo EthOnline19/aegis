@@ -16,7 +16,7 @@ import {
   deriveRequestHash,
   verdictEndpoint,
   verdictRequestUri,
-} from "@bulwark/agent-sdk";
+} from "@repayd/agent-sdk";
 // --------------------------------------------------------------------- //
 // Fixtures — keys are the demo's well-known anvil keys (no real funds)   //
 // --------------------------------------------------------------------- //

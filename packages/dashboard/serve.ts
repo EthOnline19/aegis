@@ -43,7 +43,8 @@ const server = Bun.serve({
 
     if (req.method === "GET" && (path === "/api/atlas/overview" || path === "/api/circle/agent-wallet")) {
       try {
-        const res = await fetch(`${API}${path}`);
+        const upstream = path.replace(/^\/api\//, "/v1/");
+        const res = await fetch(`${API}${upstream}`);
         const body = (await res.json()) as unknown;
         return json(res.status, body);
       } catch {

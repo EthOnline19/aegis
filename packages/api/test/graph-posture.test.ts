@@ -3,7 +3,7 @@
  *
  * postureFromGraph() is a pure function of (GraphQL payload, nowSec): these
  * tests pin the mapping from subgraph entities (streak, verdicts, claims)
- * into @bulwark/engine DrivingRecord/quote() inputs, the anomaly flags,
+ * into @repayd/engine DrivingRecord/quote() inputs, the anomaly flags,
  * and the deterministic NL summary. Fixture payloads mirror the deployed
  * Risk Subgraph schema (packages/subgraph/schema.graphql) exactly — no
  * live endpoint required.

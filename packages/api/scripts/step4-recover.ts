@@ -36,7 +36,7 @@ import {
   VALUE_BY_OUTCOME,
   deriveRequestHash,
   erc8004ForChain,
-} from "@bulwark/agent-sdk";
+} from "@repayd/agent-sdk";
 
 import { loadDeployment } from "../src/deployment.ts";
 import { ALICE, BOB, FRESH_WALLET } from "../../demo/src/protocol.ts";

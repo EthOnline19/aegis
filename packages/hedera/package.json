@@ -13,8 +13,8 @@
     "schedule-premium": "bun run scripts/schedule-premium.ts"
   },
   "dependencies": {
-    "@bulwark/engine": "workspace:*",
-    "@bulwark/record": "workspace:*",
+    "@repayd/engine": "workspace:*",
+    "@repayd/record": "workspace:*",
     "@hiero-ledger/sdk": "2.85.0",
     "@x402/core": "2.25.0",
     "@x402/express": "2.25.0",

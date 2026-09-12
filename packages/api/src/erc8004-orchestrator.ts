@@ -14,7 +14,7 @@
  *   self-feedback guard reverts) posts giveFeedback.
  * - requestHash binds each ERC-8004 request to the exact verdict
  *   (agentId, guardAccount, txHash, digest, chainId) — see
- *   @bulwark/agent-sdk's erc8004 module.
+ *   @repayd/agent-sdk's erc8004 module.
  * - Writes are one-time; the orchestrator is idempotent per digest: it
  *   skips the validation round-trip when the requestHash already exists.
  * - DISMISSED / unknown outcomes post NOTHING (fail closed).
@@ -53,7 +53,7 @@ import {
   verdictRequestUri,
   type VerdictOutcome,
   type Erc8004Registries,
-} from "@bulwark/agent-sdk";
+} from "@repayd/agent-sdk";
 
 /** VerdictContract events this orchestrator reacts to (VerdictContract.sol). */
 export const VERDICT_ACCEPTED_EVENT = {
