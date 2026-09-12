@@ -494,37 +494,91 @@ export async function executeRegistrationPlan(
     return client.sendRawTransaction({ serializedTransaction: signed });
   };
 
+  // Resume check FIRST: if the label is already ours on the registry we
+  // never re-approve/commit/register (register would revert; approve just
+  // burns gas). A zero resolver here is the signature of live run 1 —
+  // it registered with resolver=0x0 because ProxyDeployed was declared
+  // with the wrong indexed layout and failed to decode. The owner holds
+  // ROLE_SET_RESOLVER (REGISTRATION_ROLE_BITMAP), so one setResolver tx
+  // repairs the binding.
+  const own = await nameOwnership(client, plan.label);
+  if (own && own.owner.toLowerCase() !== owner.toLowerCase()) {
+    throw new Error(`${plan.name} is already owned by ${own.owner} — aborting.`);
+  }
+
+  // Find a proxy THIS (sender, salt) pair already deployed. The factory's
+  // CREATE2 salt is keccak256(abi.encode(msg.sender, userSalt)), so a
+  // spent salt can never collide with another user's deploy. Scanned in
+  // bounded chunks newest-first: publicnode silently returns [] for
+  // unbounded eth_getLogs.
+  const findSpentProxy = async (): Promise<Address | null> => {
+    const latestHex = (await client.request({
+      method: "eth_blockNumber",
+    })) as `0x${string}`;
+    const CHUNK = 5_000n;
+    let to = BigInt(latestHex);
+    for (let i = 0; i < 20; i++) {
+      const from = to > CHUNK ? to - CHUNK : 0n;
+      const logs = await client.request({
+        method: "eth_getLogs",
+        params: [
+          {
+            address: ENSV2_ADDRESSES.verifiableFactory,
+            topics: [
+              keccak256(stringToHex("ProxyDeployed(address,address,uint256,address)")),
+              encodeAbiParameters([{ type: "address" }], [owner]),
+            ],
+            fromBlock: `0x${from.toString(16)}`,
+            toBlock: `0x${to.toString(16)}`,
+          },
+        ],
+      });
+      const spent = parseEventLogs({
+        abi: verifiableFactoryAbi,
+        eventName: "ProxyDeployed",
+        logs,
+      }).find((log) => log.args.salt === plan.resolverDeploy.salt);
+      if (spent) return spent.args.proxyAddress;
+      if (from === 0n) break;
+      to = from - 1n;
+    }
+    return null;
+  };
+
+  if (own) {
+    // Ours already. Resolver bound → nothing to do; bound to 0x0 → repair.
+    if (own.resolver.toLowerCase() !== `0x${"00".repeat(20)}`) {
+      return { resolver: own.resolver, txHashes, tokenId: own.tokenId };
+    }
+    const proxy = await findSpentProxy();
+    if (!proxy) {
+      throw new Error(
+        `${plan.name} is ours with resolver=0x0 but no ProxyDeployed for our salt — cannot repair.`,
+      );
+    }
+    const fixHash = await sendRaw(
+      ENSV2_ADDRESSES.ethRegistry,
+      encodeFunctionData({
+        abi: permissionedRegistryAbi,
+        functionName: "setResolver",
+        args: [own.tokenId, proxy],
+      }),
+    );
+    txHashes.push(fixHash);
+    expectOk(await client.waitForTransactionReceipt({ hash: fixHash }), "setResolver");
+    return { resolver: proxy, txHashes, tokenId: own.tokenId };
+  }
+
   // 0. Deploy the resolver proxy. plan.resolverDeploy.data is ALREADY
   // deployProxy(impl, salt, initData) calldata — it must be sent verbatim.
   // (Re-encoding it as the `data` argument of a second deployProxy nests
   // the call: the factory then runs the inner deployProxy bytes as proxy
   // init-code, which is not a valid initialize() payload — eth_estimateGas
-  // "execution reverted", the bug that killed the first live run.)
-  //
-  // Idempotent re-runs: the factory's CREATE2 salt is
-  // keccak256(abi.encode(msg.sender, userSalt)), so a spent salt can never
-  // collide with another user's deploy. If OUR (sender, salt) pair already
-  // produced a proxy, reuse it instead of broadcasting a reverting tx.
-  const deployLogs = await client.request({
-    method: "eth_getLogs",
-    params: [
-      {
-        address: ENSV2_ADDRESSES.verifiableFactory,
-        topics: [
-          keccak256(stringToHex("ProxyDeployed(address,address,uint256,address)")),
-          encodeAbiParameters([{ type: "address" }], [owner]),
-        ],
-      },
-    ],
-  });
-  const spent = parseEventLogs({
-    abi: verifiableFactoryAbi,
-    eventName: "ProxyDeployed",
-    logs: deployLogs,
-  }).find((log) => log.args.salt === plan.resolverDeploy.salt);
+  // "execution reverted", the bug that killed live run 1.)
   let resolver = plan.resolver;
-  if (spent) {
-    resolver = spent.args.proxyAddress;
+  const already = await findSpentProxy();
+  if (already) {
+    resolver = already;
   } else {
     const deployHash = await sendRaw(plan.resolverDeploy.to, plan.resolverDeploy.data);
     txHashes.push(deployHash);
@@ -547,31 +601,6 @@ export async function executeRegistrationPlan(
     );
   }
 
-  // Resume: if this label is already OURS on the registry, never
-  // re-approve/commit/register (register would revert; approve would
-  // just burn gas). A zero resolver here is the signature of the first
-  // live run — it registered with resolver=0x0 because ProxyDeployed
-  // failed to decode. The owner holds ROLE_SET_RESOLVER (granted in
-  // REGISTRATION_ROLE_BITMAP), so one setResolver tx repairs the binding.
-  const own = await nameOwnership(client, plan.label);
-  if (own && own.owner.toLowerCase() === owner.toLowerCase()) {
-    if (own.resolver.toLowerCase() !== resolver.toLowerCase()) {
-      const fixHash = await sendRaw(
-        ENSV2_ADDRESSES.ethRegistry,
-        encodeFunctionData({
-          abi: permissionedRegistryAbi,
-          functionName: "setResolver",
-          args: [own.tokenId, resolver],
-        }),
-      );
-      txHashes.push(fixHash);
-      expectOk(await client.waitForTransactionReceipt({ hash: fixHash }), "setResolver");
-    }
-    return { resolver, txHashes, tokenId: own.tokenId };
-  }
-  if (own) {
-    throw new Error(`${plan.name} is already owned by ${own.owner} — aborting.`);
-  }
   // 1. Approve the registrar for base + premium.
   const price = await client.readContract({
     address: ENSV2_ADDRESSES.ethRegistrar,

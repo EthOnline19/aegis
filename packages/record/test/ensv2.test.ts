@@ -273,6 +273,7 @@ describe("executeRegistrationPlan", () => {
       request: async (args: { method: string }) => {
         if (args.method === "eth_estimateGas") return "0x5208" as const;
         if (args.method === "eth_getLogs") return priorDeployLogs;
+        if (args.method === "eth_blockNumber") return "0x113a0a" as `0x${string}`;
         throw new Error(`unexpected rpc ${args.method}`);
       },
       sendRawTransaction: async (args: { serializedTransaction: `0x${string}` }) =>
