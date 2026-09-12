@@ -1,6 +1,6 @@
 # REPAYD × Circle Agent Stack — Integration Plan (Arc Track)
 
-> Status: **plan implemented (gated, dry-run verified); live calls BLOCKED-ON-CRED `[NEEDS:CIRCLE_API_KEY]`** (checklist C3).
+> Status: **LIVE — authenticated reads operational** (key valid as `TEST_API_KEY:`-prefixed 3-part form on `api.circle.com/v1/w3s/*`; `entityAppId`, wallet sets, wallets, Gateway balances all served live, checklist C3). Mutation calls (wallet create / one gated spend) additionally require `CIRCLE_ENTITY_SECRET` — one-shot registration; reset via console with the recovery file.
 > This document is the research + ranked recommendation. The implementation lives in `packages/api/src/circle/agent-wallet.ts`.
 
 ## 1. What the judges ask for

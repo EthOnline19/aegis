@@ -17,7 +17,7 @@ A protected wallet that **holds** suspicious transactions for two minutes while 
 | Track | Bounty | Claim | Compliance matrix |
 |---|---|---|---|
 | **Arc** — Best Agentic Economy Application with Circle Agent Stack | $3,500 (+$2,500 mainnet rider) | An agent that **autonomously spends USDC** (4 payroll txs from its own key), survives two live attacks (hold + pre-broadcast block), and **settles a covered claim same-block** — with ERC-8004 on-chain identity, deterministic decision logic tied to real signals, and Circle Agent Stack wiring | [`docs/submission/compliance-matrix.md`](docs/submission/compliance-matrix.md#track-1--arc-best-agentic-economy-application-with-circle-agent-stack-3500-2500-of-the-pool-requires-arc-mainnet-deploy-by-sept-30-2026) |
-| **The Graph** — Best AI Tooling or AI Use Case (From Scratch) + Best Use of Composable or Standardized Graph Products | $5,000 + $5,000 | The **REPAYD Risk Subgraph**: 36 events, 9 entities, live provider data (Studio deploy), consumed by the AI **pricing engine** (streaks → premium decisions) and **risk-posture consumer** — plus composition with the **ERC-8004/Agent0 standardized schema** on `agentId` | [`docs/submission/compliance-matrix.md`](docs/submission/compliance-matrix.md#track-2a--the-graph-best-ai-tooling-or-ai-use-case-from-scratch-5000) |
+| **The Graph** — Best AI Tooling or AI Use Case (From Scratch) + Best Use of Composable or Standardized Graph Products | $5,000 + $5,000 | The **REPAYD Risk Subgraph**: 38 events, 12 entities, live provider data (Studio deploy), consumed by the AI **pricing engine** (streaks → premium decisions) and **risk-posture consumer** — plus composition with the **ERC-8004/Agent0 standardized schema** on `agentId` | [`docs/submission/compliance-matrix.md`](docs/submission/compliance-matrix.md#track-2a--the-graph-best-ai-tooling-or-ai-use-case-from-scratch-5000) |
 | **Hedera** — AI & Agentic Payments on Hedera | $6,000 (up to 3 × $2,000) | A **live x402-gated Risk Posture service on Hedera testnet** settled through Blocky402, consumed by the same guard agent in a **real paid request end-to-end** — with ERC-8004 cross-chain identity, HCS audit receipts, and scheduled-transaction settlement | [`docs/submission/compliance-matrix.md`](docs/submission/compliance-matrix.md#track-3--hedera-ai--agentic-payments-on-hedera-6000-up-to-3--2000) |
 
 Video scripts (all three recordable now — services live): [`docs/submission/video-scripts.md`](docs/submission/video-scripts.md).
@@ -83,13 +83,13 @@ Architecture diagram + narrative: [`docs/submission/architecture.md`](docs/submi
 
 | Package | What it is | Proof |
 |---|---|---|
-| `contracts/` | Solidity (Foundry): `PolicyRegistry`, `GuardAccount`, `VerdictContract`, `MutualPool`, `Blocklist` + ERC-8004 integration | **53 tests** (unit + 1000-run fuzz invariants) |
+| `contracts/` | Solidity (Foundry): `PolicyRegistry`, `GuardAccount`, `VerdictContract`, `MutualPool`, `Blocklist` + ERC-8004 integration | **102 tests** (11 suites: unit + 1000-run fuzz invariants) |
 | `packages/engine` | Watcher & Verdict Engine + deterministic TS core | **30 tests** (vitest, incl. same-inputs-same-verdict) |
 | `packages/sdk` | Agent SDK — instruction hash-chain (the alibi) + ERC-8004 clients | **35 tests** (vitest) |
 | `packages/api` | Coverage API (store + on-chain bridge), ERC-8004 orchestrator, Circle Agent Stack, live chain-read + Graph risk-posture endpoints | **55 tests** (bun test) + live Arc/Hedera/Circle/Graph runs |
 | `packages/pricing` | §12 pricing formula — streak/attempt/claim/anomaly multipliers with provenance labels | **34 tests** |
 | `packages/record` | §13 résumé builder + ENSv2 writer/resolver | 30 tests; **LIVE on Sepolia** (`atlasrepayd.eth`) |
-| `packages/subgraph` | Risk Subgraph (38 events, 9 entities) + canonical **ERC-8004 registries** subgraph | **LIVE on Graph Studio** (both build + serve) |
+| `packages/subgraph` | Risk Subgraph (38 events, 12 entities) + canonical **ERC-8004 registries** subgraph | **LIVE on Graph Studio** (both build + serve) |
 | `packages/hedera` | x402-gated Coverage & Risk API (Blocky402) + payer agent + HCS audit + Scheduled Transactions | **19 tests**; **LIVE — two real paid requests settled on testnet** |
 | `packages/dashboard` | Owner / Capital / Record surfaces | live-wired to the Arc chain via API proxies |
 | `packages/demo` | The two-gasp demo — anvil locally, **Arc testnet live** | **exit 0; 14 txs independently verified** |
