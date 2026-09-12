@@ -814,6 +814,13 @@ every event (clean block / attempt / claim / recovery)
 - 30-second fallback recording of the payout moment (a live failure-demo that fails is fatal)
 - Judges' one-pager; track-specific submission blurbs; README with diagrams; Bazantic recipes (dispute + onboarding)
 
+**BUILD STATUS — 2026-09-12 (all three targeted sponsor tracks, first-price posture).**
+Per-row detail with real tx hashes/endpoints lives in `docs/submission/compliance-matrix.md` + `credential-checklist.md`; headline:
+- **Core (Days 1–7): DONE + LIVE on Arc testnet.** Full stack deployed (chain 5042002), two-gasp demo executed live end-to-end (14 txs, independently re-verified), ERC-8004 mirror live on the canonical registries (agentId 894341 — validation score 25 COVERED, feedback −2500@2dp), same-block $135 payout confirmed on-chain.
+- **Days 8–11: DONE + LIVE.** Risk Subgraph (36/36 events, 9 entities) deployed on Graph Studio (`repayd-risk-arc` v0.1.3) + ERC-8004 standard-registries subgraph (`repayd` v0.0.7) — live AI consumer computes Risk Posture from the deployed endpoint (2.7×/135 USDC). ENSv2 `atlasrepayd.eth` registered on Sepolia with the full résumé in text records (5 txs, resolve-verified). Pricing engine v1 (§12 formula) with provenance labels, 34/34 tests. Owner dashboard live-wired to the chain.
+- **Days 8–11 Hedera extension: DONE + LIVE.** x402-gated Coverage & Risk API on Hedera testnet via the Blocky402 facilitator — two REAL paid requests settled on-chain (mirror-node verified), HCS audit memos (topic 0.0.10493275), Scheduled-Transactions recurring premium executed (0.0.10493353).
+- **Days 12–13: IN PROGRESS.** Video scripts ready (all three tracks); recording is the remaining submission work. Arc MAINNET rider (+$5,000 of the Arc pool): deploy decided, funding + run scheduled pre–Sept 30.
+
 **Deliberately out of scope for v1 (say so openly — scope honesty wins):**
 - Real cat-bond integration (cite NextBlock as the layer; show the hook)
 - Production freeze-partner integrations (forensics package emits; cite SentinelX)
