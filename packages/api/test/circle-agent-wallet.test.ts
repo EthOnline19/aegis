@@ -25,7 +25,7 @@ const GUARD = { address: "0xB30553e2f132126B951D3a6AD4E07EbAa5523b6E", usdcBalan
 
 interface FetchSpy {
   readonly urls: string[];
-  readonly fetch: typeof globalThis.fetch;
+  fetch: typeof globalThis.fetch;
 }
 
 /** Install a recording fetch; optional router maps URL fragment → JSON body. */

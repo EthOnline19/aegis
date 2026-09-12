@@ -316,7 +316,9 @@ export async function agentWalletState(
   // ---- Live reads: only the API key is needed. Mutations require the
   // entity secret; without it they stay printed (planned-call list). ---- //
   const canMutate = config.entitySecret !== undefined;
-
+  let note: string | undefined = canMutate
+    ? undefined
+    : "authenticated live reads (entity config, wallet sets, wallets, Gateway); wallet create/spend additionally require CIRCLE_ENTITY_SECRET";
   // Auth proof: Circle's entity config for this key.
   const entityRes = await circleFetch(config, "GET", "/v1/w3s/config/entity");
   if (!entityRes.ok) {
@@ -341,7 +343,6 @@ export async function agentWalletState(
 
   let walletSetId = config.walletSetId ?? sets[0]?.id;
   let walletAddress = config.walletAddress;
-  let note: string | undefined;
 
   // One-time provisioning, when authorized: create set + wallet for real.
   if (canMutate && !walletAddress) {
@@ -414,10 +415,10 @@ export async function agentWalletState(
       gatewayArcBalance =
         rows.find((r) => r.domain === ARC_TESTNET_DOMAIN)?.balance ?? "0";
     } else {
-      note = `gateway read ${gres.status}`;
+      note = (note ? note + "; " : "") + `gateway read ${gres.status}`;
     }
   } catch {
-    note = "gateway read unreachable";
+    note = (note ? note + "; " : "") + "gateway read unreachable";
   }
 
   // Optional autonomous spend (real transfer when authorized + funded).
