@@ -5,7 +5,7 @@ Two subgraphs make up REPAYD's Graph track submission:
 | Subgraph | Package | What it indexes | Studio slug |
 |---|---|---|---|
 | Risk Subgraph | `packages/subgraph` | Policies, holds, verdicts, claims, pool flows (REPAYD contracts) | `repayd-risk-arc` |
-| ERC-8004 Standard Registries Subgraph | `packages/subgraph/erc8004` | Canonical identity/validation/reputation registries (EIP-8004 events) | `repayd-erc8004` |
+| ERC-8004 Standard Registries Subgraph | `packages/subgraph/erc8004` | Canonical identity/validation/reputation registries (EIP-8004 events) | `repayd` (created under this name in Studio; v0.0.7 LIVE) |
 
 Both target **Arc testnet** (`network: arc-testnet`, chainId 5042002), which is
 on The Graph's supported-networks list — Studio hosting works with zero
@@ -176,7 +176,7 @@ canonical registries is explicitly in-scope for the track.
 | Studio create (UI click-path) | VERIFIED — slugs `repayd-risk-arc` + `repayd-erc8004` created |
 | **`graph deploy repayd-risk-arc`** | **VERIFIED LIVE** — v0.1.3, build `QmYBgJBw7h2AN5LJBs7nsVAnN3TuRWhPq6HpLQTp1b2h1i` |
 | **Live query + Risk Posture** | **VERIFIED** — real on-chain state from the endpoint (below) |
-| `graph deploy repayd-erc8004` | driver + build ready; gated on Studio slug creation |
+| **`graph deploy repayd`** (erc8004 manifest) | **VERIFIED LIVE** — v0.0.7, build `QmSuRqRZQTEQt66biy72BB1RPNM9CDkpsejLPsLjakEmy6`; indexing canonical registries from blocks 29241340/29241344/29241349 (synced past 31.4M at capture; other agents' registrations/feedback already queryable) |
 
 
 ### LIVE evidence (captured from the deployed endpoint)
@@ -211,7 +211,8 @@ Live endpoints:
 ```
 Risk Subgraph:      https://api.studio.thegraph.com/query/1760165/repayd-risk-arc/v0.1.3
 Studio dashboard:   https://thegraph.com/studio/subgraph/repayd-risk-arc
-ERC-8004 Subgraph:  (same URL pattern once the repayd-erc8004 slug is created in Studio)
+ERC-8004 Subgraph:  https://api.studio.thegraph.com/query/1760165/repayd/v0.0.7
+Studio dashboard:   https://thegraph.com/studio/subgraph/repayd
 ```
 
 The deploy driver used for verification lives at `local/graph-deploy.py`
