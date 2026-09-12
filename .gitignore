@@ -35,3 +35,6 @@ coverage.json
 
 # graph-cli local test fixtures
 packages/subgraph/tests/.latest.json
+
+# agent/session artifacts (verification reports, deploy drivers)
+local/
