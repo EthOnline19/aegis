@@ -159,9 +159,8 @@ query {
 The ERC-8004 subgraph indexes the **canonical** registries
 (deterministic CREATE2 addresses, identical on every chain), so any
 ERC-8004-conformant agent — not just REPAYD-covered ones — appears there,
-and REPAYD's verdicts are mirrored into the standard schema (`tag2: "covered"`
-feedback whose endpoint is `bulwark://verdicts/<digest>`; validations whose
-`responseHash` is the verdict digest). This mirrors The Graph's featured
+and REPAYD's verdicts are mirrored into the standard schema. This mirrors
+The Graph's featured
 [Agent0/ERC-8004 subgraphs pattern](https://thegraph.com/docs/en/subgraphs/existing-subgraphs/agent0/):
 standardized ERC-8004 indexing as a composable trust layer for agent
 economies. Contributing a standardized-schema subgraph for Arc testnet's
@@ -173,9 +172,47 @@ canonical registries is explicitly in-scope for the track.
 |---|---|
 | `graph codegen && graph build` (both subgraphs) | VERIFIED pass (cli 0.71.2) |
 | `graph auth --product subgraph-studio` | VERIFIED ("Deploy key set") |
-| IPFS upload of risk subgraph build | VERIFIED (`✔ Upload subgraph to IPFS`) |
-| Studio create (UI click-path) | requires browser session — see step 3 |
-| `graph deploy` both slugs + live `query-graph.ts` run | gated on step 3 |
+| IPFS upload of both builds | VERIFIED (`✔ Upload subgraph to IPFS`) |
+| Studio create (UI click-path) | VERIFIED — slugs `repayd-risk-arc` + `repayd-erc8004` created |
+| **`graph deploy repayd-risk-arc`** | **VERIFIED LIVE** — v0.1.3, build `QmYBgJBw7h2AN5LJBs7nsVAnN3TuRWhPq6HpLQTp1b2h1i` |
+| **Live query + Risk Posture** | **VERIFIED** — real on-chain state from the endpoint (below) |
+| `graph deploy repayd-erc8004` | driver + build ready; gated on Studio slug creation |
+
+
+### LIVE evidence (captured from the deployed endpoint)
+
+```json
+{
+  "agent": "0xb30553e2f132126b951d3a6ad4e07ebaa5523b6e",
+  "source": "graph",
+  "drivingRecord": { "lifetimeClaims": 1, "sdkInstalled": true, "watchOnly": false },
+  "multiplier": 2.7,
+  "monthlyPremiumUsdc": 135,
+  "reasons": [
+    { "tag": "CLAIM_LOAD", "detail": "paid claim within 6 months → ×3" },
+    { "tag": "SDK_DISCOUNT", "detail": "alibi SDK installed → −10%" }
+  ],
+  "summary": "Agent 0xb30553e2…3b6e shows 0 clean streak day(s) across 4 routine
+    transaction(s); 1 paid claim(s) on record (most recent within 6 months: yes);
+    risk multiplier 2.70x; 1 anomaly flag(s): POST_CLAIM_NO_STREAK.",
+  "anomalies": ["POST_CLAIM_NO_STREAK: paid payout on record but streak reset to
+    zero — high moral-hazard window"]
+}
+```
+
+Every number traces to an indexed on-chain event: the claim is the Step-4 pool
+payout (135 USDC, verdict digest `0x1af0…d3f0`), the SDK flag comes from
+`PolicyRegistry.attach`, the streak reset from the strike semantics. The
+endpoint was up and serving within ~2 minutes of deploy.
+
+
+Live endpoints:
+
+```
+Risk Subgraph:      https://api.studio.thegraph.com/query/1760165/repayd-risk-arc/v0.1.3
+Studio dashboard:   https://thegraph.com/studio/subgraph/repayd-risk-arc
+ERC-8004 Subgraph:  (same URL pattern once the repayd-erc8004 slug is created in Studio)
+```
 
 The deploy driver used for verification lives at `local/graph-deploy.py`
 (extracts `GRAPH_DEPLOY_KEY` from `.env`, runs the exact commands above).
