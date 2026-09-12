@@ -32,3 +32,6 @@ coverage.json
 .idea
 .wsl/
 .vscode
+
+# graph-cli local test fixtures
+packages/subgraph/tests/.latest.json
