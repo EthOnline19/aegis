@@ -44,7 +44,7 @@ jobs:
           if-no-files-found: ignore
 
   typescript:
-    name: TypeScript (tsc + vitest)
+    name: TypeScript (tsc + tests, all packages)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,18 +68,29 @@ jobs:
 
       - name: Type-check every package
         run: |
-          cd packages/engine && bunx tsc --noEmit
-          cd ../sdk     && bunx tsc --noEmit
-          cd ../api     && bunx tsc --noEmit
+          for p in engine sdk api record pricing hedera; do
+            (cd packages/$p && bunx tsc --noEmit) || exit 1
+          done
 
-      - name: Test engine
+      - name: Test engine (vitest)
         run: cd packages/engine && bunx vitest run
 
-      - name: Test SDK
+      - name: Test SDK (vitest)
         run: cd packages/sdk && bunx vitest run
 
-      - name: Test API
-        run: cd packages/api && bunx vitest run
+      - name: "Test API (bun test: bun:test + vitest suites)"
+        run: cd packages/api && bun test
 
-      - name: Test DEMO
+      - name: Test DEMO (vitest)
         run: cd packages/demo && bunx vitest run
+
+      - name: Test pricing / record / hedera (bun test)
+        run: |
+          cd packages/pricing && bun test
+          cd ../record && bun test
+          cd ../hedera && bun test
+
+      - name: Subgraphs build
+        run: |
+          cd packages/subgraph && bunx graph codegen && bunx graph build
+          cd erc8004 && bunx graph codegen && bunx graph build

@@ -9,12 +9,13 @@
   "scripts": {
     "test": "bun run test:contracts && bun run test:js",
     "test:contracts": "cd contracts && forge test",
-    "test:js": "cd packages/engine && bunx vitest run && cd ../sdk && bunx vitest run && cd ../api && bunx vitest run && cd ../demo && bunx vitest run",
-    "lint": "cd packages/engine && bunx tsc --noEmit && cd ../sdk && bunx tsc --noEmit && cd ../api && bunx tsc --noEmit",
+    "test:js": "cd packages/engine && bunx vitest run && cd ../sdk && bunx vitest run && cd ../api && bun test && cd ../demo && bunx vitest run && cd ../pricing && bun test && cd ../record && bun test && cd ../hedera && bun test",
+    "lint": "for p in engine sdk api record pricing hedera; do (cd packages/$p && bunx tsc --noEmit) || exit 1; done",
     "demo": "cd packages/demo && bun run src/demo.ts",
     "api": "cd packages/api && bun run start",
     "dashboard": "cd packages/dashboard && bun run start",
-    "subgraph:build": "cd packages/subgraph && bunx graph codegen && bunx graph build"
+    "subgraph:build": "cd packages/subgraph && bunx graph codegen && bunx graph build",
+    "subgraph:build:erc8004": "cd packages/subgraph/erc8004 && bunx graph codegen && bunx graph build"
   },
   "devDependencies": {
     "@circle-fin/developer-controlled-wallets": "^10.8.0",
