@@ -72,7 +72,11 @@ async function main(): Promise<void> {
 
   // Live path: real keys — complete the actual paid request.
   const signer = createClientHederaSigner(OPERATOR_ID, PrivateKey.fromStringECDSA(OPERATOR_KEY));
-  const client = new x402Client().register("hedera:testnet", new ExactHederaScheme(signer));
+  // Native HBAR ("0.0.0") is not an x402 "default asset", so opt it into spend
+  // controls explicitly — scoped to this network/asset, caps untouched.
+  const client = new x402Client()
+    .register("hedera:testnet", new ExactHederaScheme(signer))
+    .setSpendControls({ allowedAssets: [{ network: "hedera:testnet", asset: "0.0.0" }] });
   const fetchWithPay = wrapFetchWithPayment(fetch, client);
 
   console.log(`\n[2] paying ${quote.price} for GET ${paidUrl}`);
@@ -88,8 +92,16 @@ async function main(): Promise<void> {
   console.log(`[3] 200 OK — paid payload received:`);
   console.log(JSON.stringify(body, null, 2));
   if (settlementTx) {
-    console.log(`[4] settlement tx: ${settlementTx}`);
-    console.log(`    https://hashscan.io/testnet/tx/${settlementTx}`);
+    // PAYMENT-RESPONSE is base64 JSON: { success, payer, transaction, network }.
+    const settle = JSON.parse(Buffer.from(settlementTx, "base64").toString("utf8")) as {
+      success: boolean;
+      payer: string;
+      transaction: string;
+      network: string;
+    };
+    const txId = settle.transaction.replace("@", "-");
+    console.log(`[4] settlement: success=${settle.success} tx=${settle.transaction} payer=${settle.payer}`);
+    console.log(`    https://hashscan.io/testnet/transaction/${txId}`);
   }
   console.log(`[5] payer identity: ERC-8004 agentId 894341 (Arc testnet registry 0x8004A818BFB912233c491871b3d84c89A494BD9e)`);
 }
