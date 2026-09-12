@@ -25,6 +25,7 @@ import {
   createEnsv2PublicClient,
   ENSV2_ADDRESSES,
   executeRegistrationPlan,
+  nameOwnership,
   preflight,
   writerGate,
 } from "../src/ensv2.ts";
@@ -98,8 +99,17 @@ ${renderResume(RESUME)
   const pre = await preflight(client, { label, wallet: owner });
   console.log(`  preflight: available=${pre.available} price=${pre.total} (6dp MockUSDC) balance=${pre.balance}`);
   if (!pre.available) {
-    console.error(`  ✗ label "${label}" is not available — aborting before any write.`);
-    process.exit(1);
+    // Resume path: an unavailable label is fine ONLY if it's already ours
+    // (partial previous run) — executeRegistrationPlan then finishes the
+    // job idempotently (deploy skip, setResolver repair, no re-register).
+    const own = await nameOwnership(client, label);
+    if (!own || own.owner.toLowerCase() !== owner.toLowerCase()) {
+      console.error(
+        `  ✗ label "${label}" is ${own ? `owned by ${own.owner}` : "unavailable"} — aborting before any write.`,
+      );
+      process.exit(1);
+    }
+    console.log(`  ↻ already ours (tokenId=${own.tokenId} resolver=${own.resolver}) — resuming to repair/finish.`);
   }
   if (pre.balance < pre.total) {
     console.error(`  ✗ insufficient MockUSDC (${pre.balance} < ${pre.total}) — aborting before any write.`);

@@ -79,12 +79,18 @@ export const ethRegistrarAbi = parseAbi([
   "function isAvailable(string label) view returns (bool)",
   "function getRegisterPrice(string label, uint64 duration, address paymentToken) view returns (uint256 base, uint256 premium)",
   "event CommitmentMade(bytes32 commitment)",
-  "event NameRegistered(uint256 tokenId, string label, address owner, address subregistry, address resolver, uint64 duration, address paymentToken, bytes32 referrer, uint256 base, uint256 premium)",
+  // Deployed Sepolia-beta layout (blockscout-verified): tokenId AND
+  // referrer are indexed. The first live run read tokenId=0 because this
+  // was declared fully unindexed — decodeEventLog silently failed.
+  "event NameRegistered(uint256 indexed tokenId, string label, address owner, address subregistry, address resolver, uint64 duration, address paymentToken, bytes32 indexed referrer, uint256 base, uint256 premium)",
 ]);
 
 export const verifiableFactoryAbi = parseAbi([
   "function deployProxy(address implementation, uint256 salt, bytes data) returns (address)",
-  "event ProxyDeployed(address indexed sender, address proxyAddress, uint256 salt, address implementation)",
+  // Deployed layout (blockscout-verified): BOTH sender and proxyAddress
+  // are indexed. Declaring proxyAddress unindexed made parseEventLogs
+  // drop the log → the first live run bound resolver=0x0 into register.
+  "event ProxyDeployed(address indexed sender, address indexed proxyAddress, uint256 salt, address implementation)",
 ]);
 
 export const permissionedResolverAbi = parseAbi([
@@ -100,6 +106,16 @@ export const erc20MinimalAbi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function balanceOf(address account) view returns (uint256)",
+]);
+
+/** The .eth PermissionedRegistry (Sepolia-beta deployed ABI, blockscout
+ * verified): ids are derived from the RELATIVE label, and the resolver
+ * lookup takes the same relative label. */
+export const permissionedRegistryAbi = parseAbi([
+  "function findTokenId(string label) view returns (uint256)",
+  "function getOwner(uint256 tokenId) view returns (address)",
+  "function getResolver(string label) view returns (address)",
+  "function setResolver(uint256 anyId, address resolver)",
 ]);
 
 // ------------------------------------------------------------------ //
@@ -379,27 +395,62 @@ export async function preflight(client: Ensv2PublicClient, args: {
   const { label, wallet } = args;
   const paymentToken = args.paymentToken ?? ENSV2_ADDRESSES.mockUsdc;
   const duration = args.durationSeconds ?? ONE_YEAR;
-  const [available, price, balance] = await Promise.all([
-    client.readContract({
-      address: ENSV2_ADDRESSES.ethRegistrar,
-      abi: ethRegistrarAbi,
-      functionName: "isAvailable",
-      args: [label],
-    }),
-    client.readContract({
-      address: ENSV2_ADDRESSES.ethRegistrar,
-      abi: ethRegistrarAbi,
-      functionName: "getRegisterPrice",
-      args: [label, duration, paymentToken],
-    }),
-    client.readContract({
-      address: paymentToken,
-      abi: erc20MinimalAbi,
-      functionName: "balanceOf",
-      args: [wallet],
-    }),
-  ]);
+  const available = await client.readContract({
+    address: ENSV2_ADDRESSES.ethRegistrar,
+    abi: ethRegistrarAbi,
+    functionName: "isAvailable",
+    args: [label],
+  });
+  const balance = await client.readContract({
+    address: paymentToken,
+    abi: erc20MinimalAbi,
+    functionName: "balanceOf",
+    args: [wallet],
+  });
+  // getRegisterPrice REVERTS once the label is taken (_requireAvailable).
+  // A resume run (already-ours label) must survive preflight, so the
+  // price read is best-effort when unavailable.
+  if (!available) {
+    return { available, base: 0n, premium: 0n, total: 0n, balance };
+  }
+  const price = await client.readContract({
+    address: ENSV2_ADDRESSES.ethRegistrar,
+    abi: ethRegistrarAbi,
+    functionName: "getRegisterPrice",
+    args: [label, duration, paymentToken],
+  });
   return { available, base: price[0], premium: price[1], total: price[0] + price[1], balance };
+}
+
+/**
+ * If `label` (relative form — the registry derives ids from the label,
+ * not the full name) is already registered on the root .eth registry:
+ * its token id, owner, and bound resolver. Null when unregistered.
+ */
+export async function nameOwnership(
+  client: Ensv2PublicClient,
+  label: string,
+): Promise<{ tokenId: bigint; owner: Address; resolver: Address } | null> {
+  const tokenId = await client.readContract({
+    address: ENSV2_ADDRESSES.ethRegistry,
+    abi: permissionedRegistryAbi,
+    functionName: "findTokenId",
+    args: [label],
+  });
+  const holder = await client.readContract({
+    address: ENSV2_ADDRESSES.ethRegistry,
+    abi: permissionedRegistryAbi,
+    functionName: "getOwner",
+    args: [tokenId],
+  });
+  if (holder.toLowerCase() === `0x${"00".repeat(20)}`) return null;
+  const resolver = await client.readContract({
+    address: ENSV2_ADDRESSES.ethRegistry,
+    abi: permissionedRegistryAbi,
+    functionName: "getResolver",
+    args: [label],
+  });
+  return { tokenId, owner: holder, resolver };
 }
 
 /**
@@ -488,7 +539,39 @@ export async function executeRegistrationPlan(
     })[0];
     if (deployed) resolver = deployed.args.proxyAddress;
   }
+  // Fail fast rather than register against a zero resolver: a fresh plan
+  // carries 0x0 until the ProxyDeployed event resolves the real proxy.
+  if (resolver === (`0x${"00".repeat(20)}` as Address)) {
+    throw new Error(
+      "resolver proxy unresolved (ProxyDeployed event missing) — refusing to commit/register with resolver=0x0",
+    );
+  }
 
+  // Resume: if this label is already OURS on the registry, never
+  // re-approve/commit/register (register would revert; approve would
+  // just burn gas). A zero resolver here is the signature of the first
+  // live run — it registered with resolver=0x0 because ProxyDeployed
+  // failed to decode. The owner holds ROLE_SET_RESOLVER (granted in
+  // REGISTRATION_ROLE_BITMAP), so one setResolver tx repairs the binding.
+  const own = await nameOwnership(client, plan.label);
+  if (own && own.owner.toLowerCase() === owner.toLowerCase()) {
+    if (own.resolver.toLowerCase() !== resolver.toLowerCase()) {
+      const fixHash = await sendRaw(
+        ENSV2_ADDRESSES.ethRegistry,
+        encodeFunctionData({
+          abi: permissionedRegistryAbi,
+          functionName: "setResolver",
+          args: [own.tokenId, resolver],
+        }),
+      );
+      txHashes.push(fixHash);
+      expectOk(await client.waitForTransactionReceipt({ hash: fixHash }), "setResolver");
+    }
+    return { resolver, txHashes, tokenId: own.tokenId };
+  }
+  if (own) {
+    throw new Error(`${plan.name} is already owned by ${own.owner} — aborting.`);
+  }
   // 1. Approve the registrar for base + premium.
   const price = await client.readContract({
     address: ENSV2_ADDRESSES.ethRegistrar,

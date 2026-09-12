@@ -16,6 +16,7 @@ import {
   ENSV2_TEXT_KEYS,
   executeRegistrationPlan,
   makeCommitment,
+  permissionedRegistryAbi,
   renderForChain,
   resolverProxySalt,
   verifiableFactoryAbi,
@@ -162,6 +163,11 @@ describe("executeRegistrationPlan", () => {
   const DEPLOYED_TOPIC = keccak256(
     stringToHex("ProxyDeployed(address,address,uint256,address)"),
   );
+  const REGISTERED_TOPIC = keccak256(
+    stringToHex(
+      "NameRegistered(uint256,string,address,address,address,uint64,address,bytes32,uint256,uint256)",
+    ),
+  );
   const INIT_SELECTOR = "0x7058b559"; // initialize(address,uint256,bytes[])
 
   const plan = buildRegistrationPlan({
@@ -174,52 +180,49 @@ describe("executeRegistrationPlan", () => {
   // No 60s sleep in tests.
   const fastPlan = { ...plan, waitSeconds: 0 };
 
+  // Mirrors the deployed layout: sender AND proxyAddress are indexed.
   function proxyDeployedLog(salt: bigint): Log {
     return {
       address: ENSV2_ADDRESSES.verifiableFactory,
       topics: [
         DEPLOYED_TOPIC,
         encodeAbiParameters([{ type: "address" }], [ACCOUNT.address]),
+        encodeAbiParameters([{ type: "address" }], [PROXY]),
       ],
       data: encodeAbiParameters(
-        [{ type: "address" }, { type: "uint256" }, { type: "address" }],
-        [PROXY, salt, ENSV2_ADDRESSES.permissionedResolverImpl],
+        [{ type: "uint256" }, { type: "address" }],
+        [salt, ENSV2_ADDRESSES.permissionedResolverImpl],
       ),
     } as unknown as Log;
   }
 
+  // Deployed layout: tokenId AND referrer are indexed topics.
   function nameRegisteredLog(tokenId: bigint): Log {
     return {
       address: ENSV2_ADDRESSES.ethRegistrar,
       topics: [
-        keccak256(
-          stringToHex(
-            "NameRegistered(uint256,string,address,address,address,uint64,address,bytes32,uint256,uint256)",
-          ),
-        ),
+        REGISTERED_TOPIC,
+        encodeAbiParameters([{ type: "uint256" }], [tokenId]),
+        encodeAbiParameters([{ type: "bytes32" }], [`0x${"00".repeat(32)}`]),
       ],
       data: encodeAbiParameters(
         [
-          { type: "uint256" },
           { type: "string" },
           { type: "address" },
           { type: "address" },
           { type: "address" },
           { type: "uint64" },
           { type: "address" },
-          { type: "bytes32" },
           { type: "uint256" },
           { type: "uint256" },
         ],
         [
-          tokenId,
           "repayd",
           ACCOUNT.address,
           `0x${"00".repeat(20)}` as Address,
           PROXY,
           31_536_000n,
           ENSV2_ADDRESSES.mockUsdc,
-          `0x${"00".repeat(32)}` as `0x${string}`,
           8_000_021n,
           0n,
         ],
@@ -249,9 +252,23 @@ describe("executeRegistrationPlan", () => {
     } as unknown as WalletClient;
   }
 
-  function makeClient(sent: Sent[], priorDeployLogs: Log[]) {
+  interface RegistryState {
+    /** null = label unregistered (getOwner is 0x0). */
+    own?: { owner: Address; resolver: Address } | null;
+  }
+
+  function makeClient(sent: Sent[], priorDeployLogs: Log[], reg: RegistryState = {}) {
     return {
-      readContract: async () => [8000021n, 0n], // getRegisterPrice
+      readContract: async (args: { address: Address; functionName: string }) => {
+        if (args.address === ENSV2_ADDRESSES.ethRegistry) {
+          if (args.functionName === "findTokenId") return 7n;
+          if (args.functionName === "getOwner")
+            return reg.own?.owner ?? (`0x${"00".repeat(20)}` as Address);
+          if (args.functionName === "getResolver")
+            return reg.own?.resolver ?? (`0x${"00".repeat(20)}` as Address);
+        }
+        return [8000021n, 0n]; // getRegisterPrice
+      },
       getTransactionCount: async () => 3n,
       request: async (args: { method: string }) => {
         if (args.method === "eth_estimateGas") return "0x5208" as const;
@@ -326,5 +343,52 @@ describe("executeRegistrationPlan", () => {
     ]);
     expect(result.resolver).toBe(PROXY); // recovered from history logs
     expect(result.txHashes).toHaveLength(3);
+  });
+
+  it("resume: already-owned name with zero resolver → one setResolver repair tx, no re-register", async () => {
+    const sent: Sent[] = [];
+    const wallet = makeWallet(sent);
+    const client = makeClient(
+      sent,
+      [proxyDeployedLog(plan.resolverDeploy.salt)],
+      { own: { owner: ACCOUNT.address, resolver: `0x${"00".repeat(20)}` as Address } },
+    ) as unknown as Ensv2PublicClient;
+    const result = await executeRegistrationPlan(wallet, client, fastPlan);
+
+    expect(sent.map((s) => s.to)).toEqual([ENSV2_ADDRESSES.ethRegistry]);
+    const fix = decodeFunctionData({
+      abi: permissionedRegistryAbi,
+      data: sent[0]!.data,
+    });
+    expect(fix.functionName).toBe("setResolver");
+    expect(fix.args).toEqual([7n, PROXY]);
+    expect(result.tokenId).toBe(7n);
+    expect(result.txHashes).toHaveLength(1); // repair only — no approve/commit/register
+  });
+
+  it("resume: fully-registered own name → zero transactions (idempotent)", async () => {
+    const sent: Sent[] = [];
+    const wallet = makeWallet(sent);
+    const client = makeClient(sent, [proxyDeployedLog(plan.resolverDeploy.salt)], {
+      own: { owner: ACCOUNT.address, resolver: PROXY },
+    }) as unknown as Ensv2PublicClient;
+    const result = await executeRegistrationPlan(wallet, client, fastPlan);
+    expect(sent).toHaveLength(0);
+    expect(result.txHashes).toHaveLength(0);
+    expect(result.resolver).toBe(PROXY);
+    expect(result.tokenId).toBe(7n);
+  });
+
+  it("resume: name owned by SOMEONE ELSE → throws before any broadcast", async () => {
+    const sent: Sent[] = [];
+    const wallet = makeWallet(sent);
+    const stranger = "0x0000000000000000000000000000000000000123" as Address;
+    const client = makeClient(sent, [proxyDeployedLog(plan.resolverDeploy.salt)], {
+      own: { owner: stranger, resolver: `0x${"00".repeat(20)}` as Address },
+    }) as unknown as Ensv2PublicClient;
+    await expect(executeRegistrationPlan(wallet, client, fastPlan)).rejects.toThrow(
+      /already owned/,
+    );
+    expect(sent).toHaveLength(0);
   });
 });
