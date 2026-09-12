@@ -1,13 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
+  decodeFunctionData,
+  encodeAbiParameters,
+  keccak256,
+  stringToHex,
+  type Address,
+  type Log,
+  type WalletClient,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import {
   buildRegistrationPlan,
   dnsEncodeForTest,
   ENSV2_ADDRESSES,
   ENSV2_TEXT_KEYS,
+  executeRegistrationPlan,
   makeCommitment,
   renderForChain,
   resolverProxySalt,
+  verifiableFactoryAbi,
   writerGate,
+  type Ensv2PublicClient,
 } from "../src/ensv2.ts";
 import { buildResume, type ResumeInput } from "../src/resume.ts";
 
@@ -127,3 +140,191 @@ function repaydBytes(): Uint8Array {
 function ethBytes(): Uint8Array {
   return new TextEncoder().encode("eth");
 }
+
+// ------------------------------------------------------------------ //
+//   executeRegistrationPlan — the nested-deployProxy live-run bug      //
+// ------------------------------------------------------------------ //
+
+/**
+ * The bug that killed the first live run: executeRegistrationPlan
+ * re-encoded plan.resolverDeploy.data (already deployProxy calldata) as
+ * the `data` argument of a SECOND deployProxy call. The factory then ran
+ * the nested bytes as proxy init-code → eth_estimateGas reverted.
+ * These tests pin: the deploy tx carries plan.resolverDeploy.data
+ * VERBATIM (init args = initialize(...), not a nested deployProxy),
+ * every sent tx lands in txHashes, and a spent CREATE2 salt skips the
+ * deploy broadcast on re-runs.
+ */
+describe("executeRegistrationPlan", () => {
+  const PK = `0x${"11".repeat(32)}` as `0x${string}`;
+  const ACCOUNT = privateKeyToAccount(PK);
+  const PROXY = "0x2a63444cd961e4284e60b0314f58c707a8c86dAC" as Address;
+  const DEPLOYED_TOPIC = keccak256(
+    stringToHex("ProxyDeployed(address,address,uint256,address)"),
+  );
+  const INIT_SELECTOR = "0x7058b559"; // initialize(address,uint256,bytes[])
+
+  const plan = buildRegistrationPlan({
+    label: "repayd",
+    owner: ACCOUNT.address,
+    secret: SECRET,
+    resume: buildResume(DEMO),
+    chainHead: CHAIN_HEAD,
+  });
+  // No 60s sleep in tests.
+  const fastPlan = { ...plan, waitSeconds: 0 };
+
+  function proxyDeployedLog(salt: bigint): Log {
+    return {
+      address: ENSV2_ADDRESSES.verifiableFactory,
+      topics: [
+        DEPLOYED_TOPIC,
+        encodeAbiParameters([{ type: "address" }], [ACCOUNT.address]),
+      ],
+      data: encodeAbiParameters(
+        [{ type: "address" }, { type: "uint256" }, { type: "address" }],
+        [PROXY, salt, ENSV2_ADDRESSES.permissionedResolverImpl],
+      ),
+    } as unknown as Log;
+  }
+
+  function nameRegisteredLog(tokenId: bigint): Log {
+    return {
+      address: ENSV2_ADDRESSES.ethRegistrar,
+      topics: [
+        keccak256(
+          stringToHex(
+            "NameRegistered(uint256,string,address,address,address,uint64,address,bytes32,uint256,uint256)",
+          ),
+        ),
+      ],
+      data: encodeAbiParameters(
+        [
+          { type: "uint256" },
+          { type: "string" },
+          { type: "address" },
+          { type: "address" },
+          { type: "address" },
+          { type: "uint64" },
+          { type: "address" },
+          { type: "bytes32" },
+          { type: "uint256" },
+          { type: "uint256" },
+        ],
+        [
+          tokenId,
+          "repayd",
+          ACCOUNT.address,
+          `0x${"00".repeat(20)}` as Address,
+          PROXY,
+          31_536_000n,
+          ENSV2_ADDRESSES.mockUsdc,
+          `0x${"00".repeat(32)}` as `0x${string}`,
+          8_000_021n,
+          0n,
+        ],
+      ),
+    } as unknown as Log;
+  }
+
+  interface Sent {
+    to: Address;
+    data: `0x${string}`;
+    hash: `0x${string}`;
+  }
+
+  /** Wallet whose signTransaction records the raw tx instead of signing. */
+  function makeWallet(sent: Sent[]) {
+    return {
+      account: {
+        ...ACCOUNT,
+        signTransaction: async (tx: { to: Address; data: `0x${string}` }) => {
+          const hash = keccak256(
+            stringToHex(`${sent.length}:${tx.to}:${tx.data}`),
+          );
+          sent.push({ to: tx.to, data: tx.data, hash });
+          return hash; // stand-in serialized payload
+        },
+      },
+    } as unknown as WalletClient;
+  }
+
+  function makeClient(sent: Sent[], priorDeployLogs: Log[]) {
+    return {
+      readContract: async () => [8000021n, 0n], // getRegisterPrice
+      getTransactionCount: async () => 3n,
+      request: async (args: { method: string }) => {
+        if (args.method === "eth_estimateGas") return "0x5208" as const;
+        if (args.method === "eth_getLogs") return priorDeployLogs;
+        throw new Error(`unexpected rpc ${args.method}`);
+      },
+      sendRawTransaction: async (args: { serializedTransaction: `0x${string}` }) =>
+        // hash is the stand-in payload itself (see signTransaction above)
+        args.serializedTransaction,
+      waitForTransactionReceipt: async (args: { hash: `0x${string}` }) => {
+        const last = sent.find((s) => s.hash === args.hash)!;
+        const isFactory = last.to === ENSV2_ADDRESSES.verifiableFactory;
+        const isRegister =
+          last.to === ENSV2_ADDRESSES.ethRegistrar &&
+          last.data.length > 400; // register(..) beats commit(bytes32)
+        return {
+          status: "success" as const,
+          transactionHash: args.hash,
+          logs: isFactory
+            ? [proxyDeployedLog(plan.resolverDeploy.salt)]
+            : isRegister
+              ? [nameRegisteredLog(7n)]
+              : [],
+        };
+      },
+    };
+  }
+
+  it("sends deployProxy calldata VERBATIM — not nested in a second deployProxy", () => {
+    // assert on the plan artifact itself: data must decode as ONE
+    // deployProxy whose init argument is initialize(...) directly.
+    const outer = decodeFunctionData({
+      abi: verifiableFactoryAbi,
+      data: plan.resolverDeploy.data,
+    });
+    expect(outer.functionName).toBe("deployProxy");
+    expect((outer.args[0] as string).toLowerCase()).toBe(ENSV2_ADDRESSES.permissionedResolverImpl.toLowerCase());
+    expect(outer.args[1]).toBe(plan.resolverDeploy.salt);
+    expect((outer.args[2] as `0x${string}`).slice(0, 10)).toBe(INIT_SELECTOR);
+  });
+
+  it("executes deploy → approve → commit → register with verbatim deploy data", async () => {
+    const sent: Sent[] = [];
+    const wallet = makeWallet(sent);
+    const client = makeClient(sent, []) as unknown as Ensv2PublicClient;
+    const result = await executeRegistrationPlan(wallet, client, fastPlan);
+
+    expect(sent.map((s) => s.to)).toEqual([
+      ENSV2_ADDRESSES.verifiableFactory,
+      ENSV2_ADDRESSES.mockUsdc,
+      ENSV2_ADDRESSES.ethRegistrar,
+      ENSV2_ADDRESSES.ethRegistrar,
+    ]);
+    // THE regression: first tx data === plan.resolverDeploy.data exactly.
+    expect(sent[0]!.data).toBe(plan.resolverDeploy.data);
+    // every broadcast recorded, in order
+    expect(result.txHashes).toEqual(sent.map((s) => s.hash));
+    expect(result.resolver).toBe(PROXY); // from ProxyDeployed
+    expect(result.tokenId).toBe(7n); // from NameRegistered
+  });
+
+  it("skips the deploy broadcast when this sender's salt is already spent", async () => {
+    const sent: Sent[] = [];
+    const wallet = makeWallet(sent);
+    const client = makeClient(sent, [proxyDeployedLog(plan.resolverDeploy.salt)]) as unknown as Ensv2PublicClient;
+    const result = await executeRegistrationPlan(wallet, client, fastPlan);
+
+    expect(sent.map((s) => s.to)).toEqual([
+      ENSV2_ADDRESSES.mockUsdc,
+      ENSV2_ADDRESSES.ethRegistrar,
+      ENSV2_ADDRESSES.ethRegistrar,
+    ]);
+    expect(result.resolver).toBe(PROXY); // recovered from history logs
+    expect(result.txHashes).toHaveLength(3);
+  });
+});

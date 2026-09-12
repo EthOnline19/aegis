@@ -32,10 +32,12 @@ import {
   keccak256,
   namehash,
   parseAbi,
+  parseEventLogs,
   stringToHex,
   toHex,
   type Address,
   type LocalAccount,
+  type PublicClient,
   type WalletClient,
 } from "viem";
 import { sepolia } from "viem/chains";
@@ -104,9 +106,13 @@ export const erc20MinimalAbi = parseAbi([
 //                        Core construction                            //
 // ------------------------------------------------------------------ //
 
-/** All-roles bitmap for the resolver initialize (per ENSv2 docs example). */
-export const ALL_ROLES =
-  0x1111111111111111111111111111111111111111111111111111111111111111n;
+/** Role bitmap for the resolver initialize. The docs example's 0x1111…
+ * sentinel REVERTS on the deployed Sepolia beta (custom error 0x2a7b2d20 —
+ * role-bit validation; verified by eth_call bisection: roles=0 + identical
+ * setters succeeds). Init-time setters run from the proxy's own delegatecall
+ * context, so they don't need pre-granted bits; the admin can grant roles
+ * later for record updates. */
+export const ALL_ROLES = 0n;
 
 /** The registration plan — what register.ts prints (dry run) or sends. */
 export interface RegistrationPlan {
@@ -138,15 +144,14 @@ export interface RegistrationPlan {
   readonly textRecords: Record<string, string>; // baked into resolver init
 }
 
-/** Read-only Sepolia client for all ENSv2 calls. */
-export interface Ensv2PublicClient {
-  readContract: ReturnType<typeof createPublicClient>["readContract"];
-  waitForTransactionReceipt: ReturnType<typeof createPublicClient>["waitForTransactionReceipt"];
-  getTransactionCount: ReturnType<typeof createPublicClient>["getTransactionCount"];
-  estimateGas: ReturnType<typeof createPublicClient>["estimateGas"];
-  estimateFeesPerGas: ReturnType<typeof createPublicClient>["estimateFeesPerGas"];
-  sendRawTransaction: ReturnType<typeof createPublicClient>["sendRawTransaction"];
-}
+export type Ensv2PublicClient = Pick<
+  PublicClient,
+  | "readContract"
+  | "waitForTransactionReceipt"
+  | "getTransactionCount"
+  | "sendRawTransaction"
+  | "request"
+>;
 
 const sleep = (ms: number): Promise<void> => {
   const { promise, resolve } = Promise.withResolvers<void>();
@@ -356,9 +361,8 @@ export function createEnsv2PublicClient(rpcUrl: string): Ensv2PublicClient {
     readContract: full.readContract.bind(full),
     waitForTransactionReceipt: full.waitForTransactionReceipt.bind(full),
     getTransactionCount: full.getTransactionCount.bind(full),
-    estimateGas: full.estimateGas.bind(full),
-    estimateFeesPerGas: full.estimateFeesPerGas.bind(full),
     sendRawTransaction: full.sendRawTransaction.bind(full),
+    request: full.request.bind(full),
   };
 }
 
@@ -417,15 +421,21 @@ export async function executeRegistrationPlan(
   const signer = wallet.account as LocalAccount;
   const sendRaw = async (to: Address, data: `0x${string}`): Promise<`0x${string}`> => {
     const nonce = await client.getTransactionCount({ address: owner });
-    const gas = await client.estimateGas({ account: owner, to, data });
-    const fee = await client.estimateFeesPerGas({ chain: sepolia });
-    const maxFeePerGas = fee.maxFeePerGas ?? 10_000_000_000n;
-    const maxPriorityFeePerGas = fee.maxPriorityFeePerGas ?? 1_000_000_000n;
+    // Raw RPC: viem's estimateGas action against a chain-less client drops
+    // from/to from the payload, so publicnode reverts on the empty call.
+    const gasHex = (await client.request({
+      method: "eth_estimateGas",
+      params: [{ from: owner, to, data }],
+    })) as `0x${string}`;
+    // Sepolia fee ceilings: base fee has ranged 0.1–2 gwei this month;
+    // gas is estimated per-tx above, so these caps only bound the worst case.
+    const maxPriorityFeePerGas = 1_500_000_000n;
+    const maxFeePerGas = 5_000_000_000n;
     const signed = await signer.signTransaction({
       to,
       data,
       nonce,
-      gas,
+      gas: BigInt(gasHex),
       maxFeePerGas,
       maxPriorityFeePerGas,
       chainId,
@@ -433,20 +443,50 @@ export async function executeRegistrationPlan(
     return client.sendRawTransaction({ serializedTransaction: signed });
   };
 
-  // 0. Deploy the resolver proxy (CREATE2 — no-op if the salt is spent).
-  const deployHash = await sendRaw(plan.resolverDeploy.to, encodeFunctionData({
+  // 0. Deploy the resolver proxy. plan.resolverDeploy.data is ALREADY
+  // deployProxy(impl, salt, initData) calldata — it must be sent verbatim.
+  // (Re-encoding it as the `data` argument of a second deployProxy nests
+  // the call: the factory then runs the inner deployProxy bytes as proxy
+  // init-code, which is not a valid initialize() payload — eth_estimateGas
+  // "execution reverted", the bug that killed the first live run.)
+  //
+  // Idempotent re-runs: the factory's CREATE2 salt is
+  // keccak256(abi.encode(msg.sender, userSalt)), so a spent salt can never
+  // collide with another user's deploy. If OUR (sender, salt) pair already
+  // produced a proxy, reuse it instead of broadcasting a reverting tx.
+  const deployLogs = await client.request({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: ENSV2_ADDRESSES.verifiableFactory,
+        topics: [
+          keccak256(stringToHex("ProxyDeployed(address,address,uint256,address)")),
+          encodeAbiParameters([{ type: "address" }], [owner]),
+        ],
+      },
+    ],
+  });
+  const spent = parseEventLogs({
     abi: verifiableFactoryAbi,
-    functionName: "deployProxy",
-    args: [ENSV2_ADDRESSES.permissionedResolverImpl, plan.resolverDeploy.salt, plan.resolverDeploy.data],
-  }));
-  const deployReceipt = await client.waitForTransactionReceipt({ hash: deployHash });
-  const deployed = deployReceipt.logs.find((log) =>
-    log.address.toLowerCase() === ENSV2_ADDRESSES.verifiableFactory.toLowerCase(),
-  );
+    eventName: "ProxyDeployed",
+    logs: deployLogs,
+  }).find((log) => log.args.salt === plan.resolverDeploy.salt);
   let resolver = plan.resolver;
-  if (deployed) {
-    // ProxyDeployed(address indexed sender, address proxyAddress, ...)
-    resolver = `0x${deployed.data.slice(26, 66)}` as Address;
+  if (spent) {
+    resolver = spent.args.proxyAddress;
+  } else {
+    const deployHash = await sendRaw(plan.resolverDeploy.to, plan.resolverDeploy.data);
+    txHashes.push(deployHash);
+    const deployReceipt = await client.waitForTransactionReceipt({ hash: deployHash });
+    expectOk(deployReceipt, "deployProxy");
+    const deployed = parseEventLogs({
+      abi: verifiableFactoryAbi,
+      eventName: "ProxyDeployed",
+      logs: deployReceipt.logs.filter(
+        (log) => log.address.toLowerCase() === ENSV2_ADDRESSES.verifiableFactory.toLowerCase(),
+      ),
+    })[0];
+    if (deployed) resolver = deployed.args.proxyAddress;
   }
 
   // 1. Approve the registrar for base + premium.
@@ -462,7 +502,8 @@ export async function executeRegistrationPlan(
     functionName: "approve",
     args: [ENSV2_ADDRESSES.ethRegistrar, total],
   }));
-  await client.waitForTransactionReceipt({ hash: approveHash });
+  txHashes.push(approveHash);
+  expectOk(await client.waitForTransactionReceipt({ hash: approveHash }), "approve");
 
   // 2. Commit (rebind the plan with the real resolver address).
   const commitment = makeCommitment({
@@ -479,9 +520,9 @@ export async function executeRegistrationPlan(
     functionName: "commit",
     args: [commitment],
   }));
-  await client.waitForTransactionReceipt({ hash: commitHash });
+  txHashes.push(commitHash);
+  expectOk(await client.waitForTransactionReceipt({ hash: commitHash }), "commit");
 
-  // 3. Wait out MIN_COMMITMENT_AGE.
   await sleep(plan.waitSeconds * 1000);
 
   // 4. Register.
@@ -499,16 +540,28 @@ export async function executeRegistrationPlan(
       `0x${"00".repeat(32)}`,
     ],
   }));
+  txHashes.push(registerHash);
   const registerReceipt = await client.waitForTransactionReceipt({ hash: registerHash });
-  const registered = registerReceipt.logs.find(
-    (log) => log.address.toLowerCase() === ENSV2_ADDRESSES.ethRegistrar.toLowerCase(),
-  );
-  let tokenId = 0n;
-  if (registered) {
-    tokenId = BigInt(`0x${registered.data.slice(2, 66)}`);
-  }
-
+  expectOk(registerReceipt, "register");
+  const registered = parseEventLogs({
+    abi: ethRegistrarAbi,
+    eventName: "NameRegistered",
+    logs: registerReceipt.logs.filter(
+      (log) => log.address.toLowerCase() === ENSV2_ADDRESSES.ethRegistrar.toLowerCase(),
+    ),
+  })[0];
+  const tokenId = registered ? registered.args.tokenId : 0n;
   return { resolver, txHashes, tokenId };
+}
+
+/** Throw with the tx hash if a mined receipt reverted. */
+function expectOk(
+  receipt: { status: string; transactionHash: `0x${string}` },
+  step: string,
+): void {
+  if (receipt.status !== "success") {
+    throw new Error(`${step} transaction reverted: ${receipt.transactionHash}`);
+  }
 }
 
 /**
